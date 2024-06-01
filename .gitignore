@@ -1,3 +1,7 @@
 data/*
 __pycache__/*
 .ipynb_checkpoints/*
+调试.md
+.vscode/settings.json
+cpp_demo/test_giou
+.vscode/*

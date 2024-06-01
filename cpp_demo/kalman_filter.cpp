@@ -1,5 +1,11 @@
 #include "kalman_filter.h"
 
+
+//     卡尔曼滤波器基类 
+//     使用eigen库实现卡尔曼滤波的相关计算
+//     update
+//     predict
+
 KalmanFilter::KalmanFilter(int state_dim, int measure_dim)
     : state_dim(state_dim), measure_dim(measure_dim) {
     x = Eigen::VectorXd::Zero(state_dim);
