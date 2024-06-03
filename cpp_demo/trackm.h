@@ -32,8 +32,8 @@ public:
 };
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
-associate_detections_to_trackers(const std::vector<Eigen::VectorXd>& detections,
-                                 const std::vector<Eigen::VectorXd>& trackers,
+associate_detections_to_trackers(const std::vector<Box3D>& detections,
+                                 const std::vector<Box3D>& trackers,
                                  float iou_threshold = 0.3);
 
 #endif // TRACKM_H

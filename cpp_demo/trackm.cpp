@@ -51,8 +51,8 @@ Eigen::VectorXd KF::get_velocity() {
 }
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
-associate_detections_to_trackers(const std::vector<Eigen::VectorXd>& detections,
-                                 const std::vector<Eigen::VectorXd>& trackers,
+associate_detections_to_trackers(const std::vector<Box3D>& detections,
+                                 const std::vector<Box3D>& trackers,
                                  float iou_threshold) {
     if (trackers.empty()) {
         return std::make_tuple(std::vector<std::array<int, 2>>(), 
@@ -64,15 +64,13 @@ associate_detections_to_trackers(const std::vector<Eigen::VectorXd>& detections,
 
     for (size_t d = 0; d < detections.size(); ++d) {
         for (size_t t = 0; t < trackers.size(); ++t) {
-            // 假设Box3D可以从Eigen::VectorXd初始化
-            Box3D boxa_3d(detections[d]);
-            Box3D boxb_3d(trackers[t]);
+            Box3D boxa_3d = detections[d];
+            Box3D boxb_3d = trackers[t];
             auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
             iou_matrix(d, t) = giou;
         }
     }
 
-    // Hungarian algorithm
     std::vector<int> row_indices(detections.size());
     std::vector<int> col_indices(trackers.size());
     std::iota(row_indices.begin(), row_indices.end(), 0);

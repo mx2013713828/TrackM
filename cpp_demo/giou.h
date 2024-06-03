@@ -44,7 +44,7 @@ struct Box3D {
         score = score_;
     }
 
-    // 从 Bndbox 初始化 Box3D
+    // 从 Bndbox 初始化 Box3D beishan使用的检测结果结构
     Box3D(const Bndbox& bndbox) {
         x = bndbox.x;
         y = bndbox.y;
