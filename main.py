@@ -11,7 +11,7 @@ class TrackerManager:
         self.next_id = 1
         self.max_age = max_age  # Maximum number of frames to keep a track without updates
         self.min_hits = min_hits  # Minimum hits to consider a track reliable
-        self.debug = True
+        self.debug = False
     def update(self, detections):
         # Predict the current state of all trackers
         for tracker in self.trackers:
@@ -49,6 +49,7 @@ class TrackerManager:
         self.trackers = [tracker for tracker in self.trackers if tracker.time_since_update < self.max_age]
 
     def get_tracks(self):
+        
         # Only return tracks that have been updated at least min_hits times
         return np.array([[*tracker.get_state()[:7].flatten(), tracker.info.get('score', 0),tracker.info.get('class_id', -1), tracker.id] 
                          for tracker in self.trackers if tracker.hits >= self.min_hits])
@@ -61,7 +62,11 @@ class TrackerManager:
     def create_new_trackers(self, detections, unmatched_detections):
         # Create new trackers for unmatched detections
         for idx in unmatched_detections:
-            self.trackers.append(KF(detections[idx][:7], {'score': detections[idx][8],'class_id': detections[idx][7]}, self.next_id))
+            tracker_tmp = KF(detections[idx][:7], {'score': detections[idx][8],'class_id': detections[idx][7]}, self.next_id)
+            self.trackers.append(tracker_tmp)
+            print(f"init KF with {detections[idx][:7]} and id {self.next_id}")
+            print(f"init KF state: \n{tracker_tmp.get_state().flatten()}")
+            print(f"init KF velocity: \n{tracker_tmp.get_velocity().flatten()}")
             self.next_id += 1
 
     def update_trackers(self, detections, matches):
@@ -71,12 +76,15 @@ class TrackerManager:
         for match in matches:
             # tracker_idx, detection_idx = match
             detection_idx, tracker_idx = match
-
+            print(f"state before update :\n{self.trackers[tracker_idx].get_state().flatten()}")
+            print(f"update using {detections[detection_idx][:7]}")
             self.trackers[tracker_idx].update(detections[detection_idx][:7])
+            print(f"state after update :\n{self.trackers[tracker_idx].get_state().flatten()}")
             self.trackers[tracker_idx].hits += 1
             self.trackers[tracker_idx].time_since_update = 0
             self.trackers[tracker_idx].info['score'] = detections[detection_idx][8]
             self.trackers[tracker_idx].info['class_id'] = detections[detection_idx][7]
+            print(f"get velocity :{self.trackers[tracker_idx].get_velocity().flatten()}")
     def increment_age_unmatched_trackers(self, unmatched_trackers):
         # Increase the age of unmatched trackers
         for idx in unmatched_trackers:

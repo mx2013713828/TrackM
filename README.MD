@@ -80,9 +80,57 @@
 - [ ] C++ 实现
    - [x] C++ giou代码
    - [x] C++ 卡尔曼滤波器类
-   - [ ] C++ TrackerManager 跟踪管理类
+   - [x] C++ TrackerManager 跟踪管理类
+   - [ ] 
 
+## UML 类图
 
+```
++-------------------------------------+
+|             Filter                  |
++-------------------------------------+
+| - initial_pos                       |
+| - time_since_update                 |
+| - id (tracker_id)                   |
+| - hits                              |
+| - info dict{class_id:int,score:float}|
++-------------------------------------+
+| + Filter(bbox_3d, info, ID)         |
++-------------------------------------+
+
+     ^ (inherits)
+     |
++-------------------------------------+
+|                 KF                  |
++-------------------------------------+
+| - kf                                |
++-------------------------------------+
+| + KF(bbox_3d, info, ID)             |
+| + _init_kalman_filter()             |
+| + update()                          |
+| + predict()                         |
+| + get_state()                       |
++-------------------------------------+
+
+     ^ (manages *)
+     |
++-------------------------------------+
+|          TrackerManager             |
++-------------------------------------+
+| - trackers                          |
+| - next_id                           |
+| - max_age                           |
+| - min_hits                          |
++-------------------------------------+
+| + TrackerManager(max_age, min_hits) |
+| + update(detections)                |
+| + increment_age_unmatched_trackers()|
+| + create_new_trackers()             |
+| + get_tracks()                      |
+| + update_trackers()                 |
++-------------------------------------+
+
+```
 
 ### 附录：kitti track format
 ```

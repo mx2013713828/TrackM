@@ -63,19 +63,18 @@ def convex_area(boxa_bottom, boxb_bottom):
     计算最小闭合空间的面积
     ## 相比较使用凸包算法,速度更快,但是精度略低,最终的giou值也比正确的giou要低,因此giou_thres也要设置第一点
     """
-    print("use min max corners")
-    xc1 = min(np.min(boxa_bottom[:, 0]), np.min(boxb_bottom[:, 0]))
-    yc1 = min(np.min(boxa_bottom[:, 1]), np.min(boxb_bottom[:, 1]))
-    xc2 = max(np.max(boxa_bottom[:, 0]), np.max(boxb_bottom[:, 0]))
-    yc2 = max(np.max(boxa_bottom[:, 1]), np.max(boxb_bottom[:, 1]))
-    convex_area = (xc2 - xc1) * (yc2 - yc1)
+    # xc1 = min(np.min(boxa_bottom[:, 0]), np.min(boxb_bottom[:, 0]))
+    # yc1 = min(np.min(boxa_bottom[:, 1]), np.min(boxb_bottom[:, 1]))
+    # xc2 = max(np.max(boxa_bottom[:, 0]), np.max(boxb_bottom[:, 0]))
+    # yc2 = max(np.max(boxa_bottom[:, 1]), np.max(boxb_bottom[:, 1]))
+    # convex_area = (xc2 - xc1) * (yc2 - yc1)
 
     # print("use convexhull ")
-    # all_corners = np.vstack((boxa_bottom, boxb_bottom))
-    # C = ConvexHull(all_corners)
-    # convex_corners = all_corners[C.vertices]
+    all_corners = np.vstack((boxa_bottom, boxb_bottom))
+    C = ConvexHull(all_corners)
+    convex_corners = all_corners[C.vertices]
 
-    # convex_area = polygon_area(convex_corners)
+    convex_area = polygon_area(convex_corners)
 
     return convex_area
 
@@ -181,14 +180,14 @@ def calculate_iou(boxa_3d, boxb_3d):
     U_2D = boxa_3d[3] * boxa_3d[4] + boxb_3d[3] * boxb_3d[4] - I_2D
     U_3D = boxa_3d[3] * boxa_3d[4] * boxa_3d[5] + boxb_3d[3] * boxb_3d[4] * boxb_3d[5] - I_3D ## BOXa体积 + BOXb体积 - I_3D
     
-    print(f"Box A Bottom Corners: \n{boxa_bot}")
-    print(f"Box B Bottom Corners: \n{boxb_bot}")
+    # print(f"Box A Bottom Corners: \n{boxa_bot}")
+    # print(f"Box B Bottom Corners: \n{boxb_bot}")
 
-    print(f"I_2D: {I_2D}")
-    print(f"I_3D: {I_3D}")
-    print(f"C_3D: {C_3D}")
-    print(f"U_2D: {U_2D}")
-    print(f"U_3D: {U_3D}")
+    # print(f"I_2D: {I_2D}")
+    # print(f"I_3D: {I_3D}")
+    # print(f"C_3D: {C_3D}")
+    # print(f"U_2D: {U_2D}")
+    # print(f"U_3D: {U_3D}")
 
     IOU2d = I_2D / U_2D
     IOU3d = I_3D / U_3D

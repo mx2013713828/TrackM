@@ -27,13 +27,18 @@ public:
     void _init_kalman_filter();
     void predict();
     void update(const Eigen::VectorXd& bbox3D);
-    Eigen::VectorXd get_state();
-    Eigen::VectorXd get_velocity();
+    Eigen::VectorXd get_state() const; // 这里声明为 const
+    Eigen::VectorXd get_velocity() const;
 };
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
 associate_detections_to_trackers(const std::vector<Box3D>& detections,
                                  const std::vector<Box3D>& trackers,
-                                 float iou_threshold = 0.3);
+                                 float iou_threshold = -0.1);
+
+
+void print_results(const std::vector<std::array<int, 2>>& matches,
+                   const std::vector<int>& unmatched_detections,
+                   const std::vector<int>& unmatched_trackers) ;
 
 #endif // TRACKM_H

@@ -4,11 +4,11 @@ from scipy.optimize import linear_sum_assignment
 import iou
 class Filter:
     def __init__(self, bbox3D: np.ndarray, info: dict, ID: int):
-        self.initial_pos = bbox3D
+        self.initial_pos = bbox3D 
         self.time_since_update = 0 
-        self.id = ID
-        self.hits = 1  # Number of total hits including the first detection
-        self.info = info  # Other associated information
+        self.id = ID 
+        self.hits = 1  # Number of total hits including the first detection 
+        self.info = info  # Other associated information 
         
 class KF(Filter):
     def __init__(self, bbox3D: np.ndarray, info: dict, ID: int):

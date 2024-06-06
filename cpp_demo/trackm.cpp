@@ -8,6 +8,7 @@
 #include <numeric>
 #include <vector>
 #include <unordered_map>
+// 跟踪器类的实现、匹配算法实现
 
 Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID)
     : initial_pos(bbox3D), time_since_update(0), id(ID), hits(1), info(info) {}
@@ -42,11 +43,11 @@ void KF::update(const Eigen::VectorXd& bbox3D) {
     kf.update(bbox3D);
 }
 
-Eigen::VectorXd KF::get_state() {
+Eigen::VectorXd KF::get_state() const {
     return kf.x;
 }
 
-Eigen::VectorXd KF::get_velocity() {
+Eigen::VectorXd KF::get_velocity() const {
     return kf.x.tail<3>();
 }
 
@@ -107,4 +108,23 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
     }
 
     return std::make_tuple(matches, unmatched_detections, unmatched_trackers);
+}
+
+void print_results(const std::vector<std::array<int, 2>>& matches,
+                   const std::vector<int>& unmatched_detections,
+                   const std::vector<int>& unmatched_trackers) {
+    std::cout << "Matches:" << std::endl;
+    for (const auto& match : matches) {
+        std::cout << "Detection " << match[0] << " matched with Tracker " << match[1] << std::endl;
+    }
+
+    std::cout << "Unmatched Detections:" << std::endl;
+    for (int idx : unmatched_detections) {
+        std::cout << "Detection " << idx << std::endl;
+    }
+
+    std::cout << "Unmatched Trackers:" << std::endl;
+    for (int idx : unmatched_trackers) {
+        std::cout << "Tracker " << idx << std::endl;
+    }
 }
