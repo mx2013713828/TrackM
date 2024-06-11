@@ -3,15 +3,18 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <numeric> 
-#include "trackm.h"
-#include "kalman_filter.h"
-#include "giou.h"
-#include "track_manager.h"
+#include "../include/trackm.h"
+#include "../include/kalman_filter.h"
+#include "../include/giou.h"
+#include "../include/track_manager.h"
 
 TrackManager::TrackManager(int max_age, int min_hits)
-    : next_id(1), max_age(max_age), min_hits(min_hits) {}
+    : next_id(0), max_age(max_age), min_hits(min_hits) {
+
+    }
 
 void TrackManager::update(const std::vector<Box3D>& detections) {
+    std::cout<<"迭代update函数"<<std::endl;
     // 预测所有跟踪器的当前状态
     for (auto& tracker : trackers) {
         tracker.predict();
@@ -19,6 +22,7 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
 
     // 如果没有现有的跟踪器，初始化它们
     if (trackers.empty()) {
+        std::cout<< "初始化跟踪器" <<std::endl;
         std::vector<int> unmatched_detections(detections.size());
         std::iota(unmatched_detections.begin(), unmatched_detections.end(), 0); // 创建一个从0开始的索引数组
         create_new_trackers(detections, unmatched_detections);
@@ -31,10 +35,25 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
         }
 
         // 将检测结果与跟踪器关联
-        std::vector<std::array<int, 2>> matches;
-        std::vector<int> unmatched_detections;
-        std::vector<int> unmatched_trackers;
-        std::tie(matches, unmatched_detections, unmatched_trackers) = associate_detections_to_trackers(detections, tracker_states);
+
+        auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states);
+        // 打印 matches
+        std::cout << "Matches:" << std::endl;
+        for (const auto& match : matches) {
+            std::cout << "(" << match[0] << ", " << match[1] << ")" << std::endl;
+        }
+
+        // 打印 unmatched_detections
+        std::cout << "Unmatched Detections:" << std::endl;
+        for (const auto& detection : unmatched_detections) {
+            std::cout << detection << std::endl;
+        }
+
+        // 打印 unmatched_trackers
+        std::cout << "Unmatched Trackers:" << std::endl;
+        for (const auto& tracker : unmatched_trackers) {
+            std::cout << tracker << std::endl;
+        }
 
         // 更新命中的跟踪器
         update_trackers(detections, matches);
@@ -55,6 +74,7 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
 std::vector<Box3D> TrackManager::get_tracks() {
     std::vector<Box3D> reliable_tracks;
     for (const auto& tracker : trackers) {
+        // std::cout<<"time_since_update: " <<tracker.time_since_update <<std::endl;
         if (tracker.hits >= min_hits) {
             reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.id);
         }
@@ -90,6 +110,8 @@ void TrackManager::update_trackers(const std::vector<Box3D>& detections, const s
 
 void TrackManager::increment_age_unmatched_trackers(const std::vector<int>& unmatched_trackers) {
     for (int idx : unmatched_trackers) {
+        // std::cout<<"增加为匹配上的跟踪的年龄前 trackers["<<idx<<"].time_since_update:" <<trackers[idx].time_since_update <<" track_id: "<<trackers[idx].id<<std::endl;
         trackers[idx].time_since_update++;
+        // std::cout<<"增加为匹配上的跟踪的年龄后 trackers["<<idx<<"].time_since_update:" <<trackers[idx].time_since_update <<" track_id: "<<trackers[idx].id<<std::endl;
     }
 }

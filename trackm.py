@@ -74,7 +74,7 @@ class KF(Filter):
         return self.kf.x[7:]
 
 
-def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
+def associate_detections_to_trackers(detections, trackers, iou_threshold=-0.1):
     """
     Assigns detections to tracked objects (both represented as bounding boxes).
     Returns 3 lists: matches, unmatched_detections, and unmatched_trackers.

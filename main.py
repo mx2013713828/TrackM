@@ -54,10 +54,6 @@ class TrackerManager:
         return np.array([[*tracker.get_state()[:7].flatten(), tracker.info.get('score', 0),tracker.info.get('class_id', -1), tracker.id] 
                          for tracker in self.trackers if tracker.hits >= self.min_hits])
 
-    # def predict(self):
-    #     # Predict the current state of all trackers
-    #     for tracker in self.trackers:
-    #         tracker.predict()
 
     def create_new_trackers(self, detections, unmatched_detections):
         # Create new trackers for unmatched detections
@@ -134,8 +130,8 @@ def main():
 
         # 保存当前帧的跟踪结果
         output_file_path = os.path.join(args.output_folder, f'{frame_idx:06d}.txt')
-        np.savetxt(output_file_path, tracks, delimiter=',', fmt='%f')
-        if frame_idx == 5:
+        np.savetxt(output_file_path, tracks, delimiter=' ', fmt='%f')
+        if frame_idx == 10:
             break
 
 if __name__ == "__main__":

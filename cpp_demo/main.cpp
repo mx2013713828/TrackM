@@ -1,28 +1,9 @@
-// #include <iostream>
-// #include "giou.h"
-// #include "trackm.h"
-// int main() {
-//     // 定义两个3D边界框
-//     Box3D box1 = {0.0f, 0.0f, 0.0f, 2.0f, 2.0f, 2.0f, 1.7f}; // x, y, z, w, l, h, yaw
-//     Box3D box2 = {1.0f, 1.0f, 0.0f, 2.0f, 2.0f, 2.0f, 1.7f}; // x, y, z, w, l, h, yaw
-
-//     // 计算IoU
-//     auto iou_result = calculate_iou(box1, box2);
-
-//     // 输出结果
-//     std::cout << "GIoU: " << iou_result[0] << std::endl;
-//     std::cout << "3D IoU: " << iou_result[1] << std::endl;
-//     std::cout << "2D IoU: " << iou_result[2] << std::endl;
-
-//     return 0;
-// }
-
 #include <iostream>
 #include <unordered_map>
 #include <vector>
 #include <Eigen/Dense>
-#include "trackm.h"
-#include "track_manager.h"
+#include "./include/trackm.h"
+#include "./include/track_manager.h"
 int main() {
     // 创建 TrackManager 对象
     TrackManager track_manager(3, 1);
