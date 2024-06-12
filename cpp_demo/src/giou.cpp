@@ -1,3 +1,18 @@
+/*
+ * File:        giou.cpp
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: This implementation file contains the definitions of the functions 
+ *              declared in giou.h. These functions include:
+ *              - box2corners: Computes the 3D corners of a bounding box.
+ *              - convex_area: Computes the convex area of two bounding boxes' projections.
+ *              - compute_height: Computes the height overlap between two bounding boxes.
+ *              - polygon_area: Computes the area of a polygon.
+ *              - sutherland_hodgman_clip: Performs the Sutherland-Hodgman clipping algorithm.
+ *              - calculate_iou: Calculates the intersection over union (IoU) between two 3D bounding boxes.
+ */
+
 #include "../include/giou.h"
 #include <algorithm>
 #include <numeric>

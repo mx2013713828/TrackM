@@ -1,3 +1,12 @@
+/*
+ * File:        track_manager.cpp
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: Implementation of the TrackManager class, including methods for
+ *              updating, creating, and managing object trackers using Kalman filters.
+ */
+
 #include <iostream>
 #include <vector>
 #include <Eigen/Dense>

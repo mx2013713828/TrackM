@@ -1,9 +1,14 @@
-#include "../include/kalman_filter.h"
+/*
+ * File:        kalman_filter.cpp
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: Implements the KalmanFilter class methods, including the
+ *              constructor, predict, and update functions, using the
+ *              Eigen library for matrix operations.
+ */
 
-//     卡尔曼滤波器基类 
-//     使用eigen库实现卡尔曼滤波的相关计算
-//     update
-//     predict
+#include "../include/kalman_filter.h"
 
 KalmanFilter::KalmanFilter(int state_dim, int measure_dim)
     : state_dim(state_dim), measure_dim(measure_dim) {

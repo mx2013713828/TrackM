@@ -1,3 +1,19 @@
+/*
+ * File:        track_manager.h
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: This header file defines the TrackManager class, which manages 
+ *              multiple object trackers using the Kalman filter. The main 
+ *              functionalities include:
+ *              - update: Updates all trackers with new detections.
+ *              - get_tracks: Returns the states of active trackers.
+ *              - create_new_trackers: Initializes new trackers for unmatched detections.
+ *              - update_trackers: Updates trackers that match new detections.
+ *              - increment_age_unmatched_trackers: Increases the age of unmatched trackers.
+ *              The class integrates with other modules such as trackm, kalman_filter, and giou.
+ */
+
 #include <iostream>
 #include <Eigen/Dense>
 
