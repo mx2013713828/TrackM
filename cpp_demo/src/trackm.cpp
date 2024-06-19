@@ -68,6 +68,7 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
             Box3D boxa_3d = detections[d];
             Box3D boxb_3d = trackers[t];
             auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
+            // std::cout<<"giou: "<<giou<<std::endl;
             iou_matrix(d, t) = giou;
         }
     }

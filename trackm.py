@@ -96,7 +96,7 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=-0.1):
     for d, det in enumerate(detections):
         for t, trk in enumerate(trackers):
             giou,iou3d,iou2d = iou.calculate_iou(det[:7],trk[:7])
-            # print(giou)
+            print(f"giou: {giou}")
             iou_matrix[d, t] = giou
 
     # print(f"iou_matrix : \n {iou_matrix}")

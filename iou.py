@@ -37,13 +37,13 @@ def box2corners(bbox):
     yaw = bbox[6]
     c = np.cos(yaw)
     s = np.sin(yaw)
-
+    # print(f"cos:{c}, sin:{s}")
     R = np.array([[c, -s, 0],
                   [s, c, 0],
                   [0, 0, 1]])
     x, y, z = bbox[0], bbox[1], bbox[2]
     l, w, h = bbox[3], bbox[4], bbox[5]
-
+    # print(f"x,y,z,w,l,h")
     # 先假设以坐标系原点为中心
     # 3d bounding box corners
     x_corners = [l/2, l/2, -l/2, -l/2, l/2, l/2, -l/2, -l/2] # 顺时针旋转
@@ -60,21 +60,23 @@ def box2corners(bbox):
 
 def convex_area(boxa_bottom, boxb_bottom):  
     """  
-    计算最小闭合空间的面积
-    ## 相比较使用凸包算法,速度更快,但是精度略低,最终的giou值也比正确的giou要低,因此giou_thres也要设置第一点
+    计算最小闭合空间的面积的两种方式
     """
-    xc1 = min(np.min(boxa_bottom[:, 0]), np.min(boxb_bottom[:, 0]))
-    yc1 = min(np.min(boxa_bottom[:, 1]), np.min(boxb_bottom[:, 1]))
-    xc2 = max(np.max(boxa_bottom[:, 0]), np.max(boxb_bottom[:, 0]))
-    yc2 = max(np.max(boxa_bottom[:, 1]), np.max(boxb_bottom[:, 1]))
-    convex_area = (xc2 - xc1) * (yc2 - yc1)
+    ### 相比较使用凸包算法,速度更快,但是精度略低,最终的giou值也比正确的giou要低,因此giou_thres也要设置低一点
+    # xc1 = min(np.min(boxa_bottom[:, 0]), np.min(boxb_bottom[:, 0]))
+    # yc1 = min(np.min(boxa_bottom[:, 1]), np.min(boxb_bottom[:, 1]))
+    # xc2 = max(np.max(boxa_bottom[:, 0]), np.max(boxb_bottom[:, 0]))
+    # yc2 = max(np.max(boxa_bottom[:, 1]), np.max(boxb_bottom[:, 1]))
+    # convex_area = (xc2 - xc1) * (yc2 - yc1)
 
-    # # print("use convexhull ")
-    # all_corners = np.vstack((boxa_bottom, boxb_bottom))
-    # C = ConvexHull(all_corners)
-    # convex_corners = all_corners[C.vertices]
+    # print(f"boxa: {boxa_bottom}\n")
+    # print(f"boxb: {boxb_bottom}")
+    print("use convexhull ")
+    all_corners = np.vstack((boxa_bottom, boxb_bottom))
+    C = ConvexHull(all_corners)
+    convex_corners = all_corners[C.vertices]
 
-    # convex_area = polygon_area(convex_corners)
+    convex_area = polygon_area(convex_corners)
 
     return convex_area
 

@@ -1,12 +1,16 @@
-#include "../include/giou.h"
 #include <algorithm>
 #include <numeric>
 #include <limits>
+#include <opencv2/opencv.hpp>
+
+#include "../include/giou.h"
 
 std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
     float yaw = bbox.yaw;
     float c = std::cos(yaw);
     float s = std::sin(yaw);
+
+    // std::cout<< "cos:"<<c <<"sin:"<<s<<std::endl;
 
     std::array<std::array<float, 3>, 3> R = {{
         {c, -s, 0},
@@ -16,9 +20,10 @@ std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
     
     float x = bbox.x, y = bbox.y, z = bbox.z;
     float l = bbox.l, w = bbox.w, h = bbox.h;
+    // std::cout<<"x:"<<x<<"y:"<<y<<"z:"<<z<<"w:"<<w<<"l:"<<l<<"h:"<<h<<std::endl;
 
-    std::vector<float> x_corners = {l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2};
-    std::vector<float> y_corners = {w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2};
+    std::vector<float> y_corners = {l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2};
+    std::vector<float> x_corners = {w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2};
     std::vector<float> z_corners = {h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2};
 
     std::vector<std::array<float, 3>> corners_3d(8);
@@ -36,24 +41,57 @@ std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
 }
 
 float convex_area(const std::vector<std::array<float, 2>>& boxa_bottom, const std::vector<std::array<float, 2>>& boxb_bottom) {
-    float xc1 = std::min(
-            std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
-            std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
-        );
-    float yc1 = std::min(
-        std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
-        std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
-    );
-    float xc2 = std::max(
-        std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
-        std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
-    );
-    float yc2 = std::max(
-        std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
-        std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
-    );
-    return (xc2 - xc1) * (yc2 - yc1);
-    return (xc2 - xc1) * (yc2 - yc1);
+    // float xc1 = std::min(
+    //         std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
+    //         std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
+    //     );
+    // float yc1 = std::min(
+    //     std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
+    //     std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
+    // );
+    // float xc2 = std::max(
+    //     std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
+    //     std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
+    // );
+    // float yc2 = std::max(
+    //     std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
+    //     std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
+    // );
+    
+    // return (xc2 - xc1) * (yc2 - yc1);
+
+    // test log
+    // std::cout<<"boxa:"<<std::endl;
+    // for(auto& a : boxa_bottom) {
+    //     std::cout<< a[0] <<","<< a[1] <<std::endl;
+    // }
+
+    // std::cout<<"boxb:"<<std::endl;
+    // for(auto& b : boxb_bottom) {
+    //     std::cout<< b[0] <<","<< b[1] <<std::endl;
+    // }
+    // 第二种使用凸包算法的实现
+    std::vector<std::array<float, 2>> all_corners = boxa_bottom;
+    all_corners.insert(all_corners.end(), boxb_bottom.begin(), boxb_bottom.end());
+
+    // 使用OpenCV的凸包算法
+    std::vector<cv::Point2f> points;
+    for (const auto& corner : all_corners) {
+        points.emplace_back(corner[0], corner[1]);
+    }
+    std::vector<int> hull_indices;
+    cv::convexHull(points, hull_indices);
+
+    std::vector<std::array<float, 2>> hull_points;
+    for (int idx : hull_indices) {
+        hull_points.push_back({points[idx].x, points[idx].y});
+    }
+
+    float hull_area = polygon_area(hull_points);
+
+    // 返回凸包面积
+    return hull_area;
+
 }
 
 float compute_height(const std::vector<std::array<float, 3>>& corners1, const std::vector<std::array<float, 3>>& corners2, bool inter) {
