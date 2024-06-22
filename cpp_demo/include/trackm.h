@@ -1,3 +1,13 @@
+/*
+ * File:        trackm.h
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: Header file for the Filter and KF classes, which implement
+ *              tracking filters using Kalman Filters, and functions for
+ *              associating detections with trackers.
+ */
+
 #ifndef TRACKM_H
 #define TRACKM_H
 
@@ -37,7 +47,7 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
                                  const std::vector<Box3D>& trackers,
                                  float iou_threshold = 0.3);
 
-
+// 打印匹配结果,测试时使用
 void print_results(const std::vector<std::array<int, 2>>& matches,
                    const std::vector<int>& unmatched_detections,
                    const std::vector<int>& unmatched_trackers) ;

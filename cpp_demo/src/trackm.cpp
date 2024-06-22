@@ -1,3 +1,11 @@
+/*
+ * File:        trackm.cpp
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: Implementation of the tracking filter classes and matching algorithm.
+ */
+
 #include "../include/trackm.h"
 #include "../include/kalman_filter.h"
 #include <algorithm>
@@ -8,7 +16,6 @@
 #include <numeric>
 #include <vector>
 #include <unordered_map>
-// 跟踪器类的实现、匹配算法实现
 
 Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID)
     : initial_pos(bbox3D), time_since_update(0), id(ID), hits(1), info(info) {}

@@ -1,3 +1,22 @@
+/*
+ * File:        giou.h
+ * Author:      Yufeng Ma
+ * Date:        2024-06-01
+ * Email:       97357473@qq.com
+ * Description: This header file defines structures and functions for computing
+ *              the generalized intersection over union (GIoU) and other related
+ *              metrics for 3D bounding boxes. The main components include:
+ *              - Bndbox: A structure representing a bounding box with position,
+ *                dimensions, rotation, and additional properties.
+ *              - Box3D: A structure representing a 3D bounding box, which can
+ *                be initialized from Eigen vectors or Bndbox objects.
+ *              - Functions for computing the 2D and 3D corners of bounding boxes,
+ *                calculating the convex area, polygon area, and height of boxes,
+ *                and performing the Sutherland-Hodgman clipping algorithm.
+ *              - A function for calculating the intersection over union (IoU) 
+ *                between two 3D bounding boxes.
+ */
+
 #ifndef GIOU_H
 #define GIOU_H
 
