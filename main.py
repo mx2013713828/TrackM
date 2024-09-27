@@ -51,6 +51,7 @@ class TrackerManager:
     def get_tracks(self):
         
         # Only return tracks that have been updated at least min_hits times
+        #return x,y,z,w,l,h,yaw,score,class_id,track_id
         return np.array([[*tracker.get_state()[:7].flatten(), tracker.info.get('score', 0),tracker.info.get('class_id', -1), tracker.id] 
                          for tracker in self.trackers if tracker.hits >= self.min_hits])
 
@@ -124,15 +125,16 @@ def main():
         # Update tracker manager with current detections
         tracker_manager.update(detections)
 
-        # 获取当前的跟踪结果
+        # 获取当前的跟踪结果 { x,y,z,w,l,h,yaw,score,class_id,track_id }
         tracks = tracker_manager.get_tracks()
+
         print(f"当前第 {frame_idx} 帧的跟踪结果：{tracks}")
 
         # 保存当前帧的跟踪结果
         output_file_path = os.path.join(args.output_folder, f'{frame_idx:06d}.txt')
         np.savetxt(output_file_path, tracks, delimiter=' ', fmt='%f')
-        if frame_idx == 10:
-            break
+        # if frame_idx == 10:
+        #     break
 
 if __name__ == "__main__":
     main()
