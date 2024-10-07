@@ -17,6 +17,13 @@
 #include <vector>
 #include <unordered_map>
 
+// 将角度限制在 [-pi, pi] 范围内
+double limit_angle(double angle) {
+    while (angle > M_PI) angle -= 2.0 * M_PI;
+    while (angle < -M_PI) angle += 2.0 * M_PI;
+    return angle;
+}
+
 Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID)
     : initial_pos(bbox3D), time_since_update(0), id(ID), hits(1), info(info) {}
 
@@ -46,8 +53,27 @@ void KF::predict() {
     kf.predict();
 }
 
+// void KF::update(const Eigen::VectorXd& bbox3D) {
+//     kf.update(bbox3D);
+// }
+
 void KF::update(const Eigen::VectorXd& bbox3D) {
-    kf.update(bbox3D);
+    // 获取卡尔曼滤波器中的 yaw 值
+    double previous_yaw = kf.x(6);
+    double new_yaw = bbox3D(6);
+
+    // 计算yaw的差值并限制在[-pi, pi]
+    double yaw_diff = limit_angle(new_yaw - previous_yaw);
+
+    // 使用平滑后的yaw值更新bbox3D的yaw
+    Eigen::VectorXd smoothed_bbox = bbox3D;
+    smoothed_bbox(6) = previous_yaw + yaw_diff;
+
+    // 更新卡尔曼滤波器状态
+    kf.update(smoothed_bbox);
+
+    // 确保更新后的yaw值在[-pi, pi]范围内
+    kf.x(6) = limit_angle(kf.x(6));
 }
 
 Eigen::VectorXd KF::get_state() const {

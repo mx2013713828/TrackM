@@ -2,6 +2,20 @@ import numpy as np
 from filterpy.kalman import KalmanFilter
 from scipy.optimize import linear_sum_assignment
 import iou
+
+def limit_angle(ry):
+    """
+    将角度 ry 限定在 [-pi, pi] 范围内
+    :param ry: 输入的角度值（单位：弧度）
+    :return: 限定在 [-pi, pi] 范围内的角度值
+    """
+    ry = np.fmod(ry, 2 * np.pi)  # 将角度值限制在 [-2*pi, 2*pi] 之间
+    if ry > np.pi:
+        ry -= 2 * np.pi  # 如果角度大于 pi，则减去 2*pi
+    elif ry < -np.pi:
+        ry += 2 * np.pi  # 如果角度小于 -pi，则加上 2*pi
+    return ry
+
 class Filter:
     def __init__(self, bbox3D: np.ndarray, info: dict, ID: int):
         self.initial_pos = bbox3D 
@@ -61,9 +75,29 @@ class KF(Filter):
 
         self.kf.predict()
 
+    # def update(self, bbox3D: np.ndarray):
+    #     """Update the state with the new measurement."""
+    #     self.kf.update(bbox3D.reshape((7, 1)))
+    #     # self.kf.x[6] = bbox3D[6]
+
     def update(self, bbox3D: np.ndarray):
-        """Update the state with the new measurement."""
+        """根据新检测框更新卡尔曼滤波状态,处理yaw周期性问题"""
+        # 获取当前的卡尔曼滤波器的 yaw 值
+        previous_yaw = self.kf.x[6, 0]
+        new_yaw = bbox3D[6]
+
+        # 计算角度差，确保差值在 [-pi, pi] 范围内
+        yaw_diff = new_yaw - previous_yaw
+        yaw_diff = limit_angle(yaw_diff)
+
+        # 更新 yaw 值，保持平滑过渡
+        bbox3D[6] = previous_yaw + yaw_diff
+
+        # 调用卡尔曼滤波器的更新方法
         self.kf.update(bbox3D.reshape((7, 1)))
+
+        # 确保更新后的 yaw 在 [-pi, pi] 范围内
+        self.kf.x[6] = limit_angle(self.kf.x[6])
 
     def get_state(self) -> np.ndarray:
         """Return the current state estimate."""
@@ -96,7 +130,7 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=-0.1):
     for d, det in enumerate(detections):
         for t, trk in enumerate(trackers):
             giou,iou3d,iou2d = iou.calculate_iou(det[:7],trk[:7])
-            print(f"giou: {giou}")
+            # print(f"giou: {giou}")
             iou_matrix[d, t] = giou
 
     # print(f"iou_matrix : \n {iou_matrix}")

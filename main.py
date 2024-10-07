@@ -4,7 +4,6 @@ import numpy as np
 from trackm import KF, Filter, associate_detections_to_trackers
 import iou
 
-
 class TrackerManager:
     def __init__(self, max_age=5, min_hits=3):
         self.trackers = []
@@ -15,20 +14,21 @@ class TrackerManager:
     def update(self, detections):
         # Predict the current state of all trackers
         for tracker in self.trackers:
+            # print(f"state before predict :\n{tracker.get_state().flatten()}")
             tracker.predict()  ## 需测试predict前后
-        
+            # print(f"state after predict :\n{tracker.get_state().flatten()}")
+
         # If no existing trackers, initialize them
         if len(self.trackers) == 0:
             self.create_new_trackers(detections, list(range(len(detections))))
         else:
             # Get current states of all trackers
-            # tracker_states = np.array([tracker.get_state().flatten() for tracker in self.trackers])
             tracker_states = [np.array(tracker.get_state().flatten()) for tracker in self.trackers]
 
             # Associate detections to trackers
             if self.debug:
                 print(f"start matching for  tracker states:  \n {tracker_states} \n and detections : \n {detections} ")
-            matches, unmatched_detections, unmatched_trackers = associate_detections_to_trackers(detections, tracker_states)
+            matches, unmatched_detections, unmatched_trackers = associate_detections_to_trackers(detections, tracker_states, -0.3)
             
             # Debug output
             if self.debug:
@@ -55,15 +55,14 @@ class TrackerManager:
         return np.array([[*tracker.get_state()[:7].flatten(), tracker.info.get('score', 0),tracker.info.get('class_id', -1), tracker.id] 
                          for tracker in self.trackers if tracker.hits >= self.min_hits])
 
-
     def create_new_trackers(self, detections, unmatched_detections):
         # Create new trackers for unmatched detections
         for idx in unmatched_detections:
             tracker_tmp = KF(detections[idx][:7], {'score': detections[idx][8],'class_id': detections[idx][7]}, self.next_id)
             self.trackers.append(tracker_tmp)
-            print(f"init KF with {detections[idx][:7]} and id {self.next_id}")
-            print(f"init KF state: \n{tracker_tmp.get_state().flatten()}")
-            print(f"init KF velocity: \n{tracker_tmp.get_velocity().flatten()}")
+            # print(f"init KF with {detections[idx][:7]} and id {self.next_id}")
+            # print(f"init KF state: \n{tracker_tmp.get_state().flatten()}")
+            # print(f"init KF velocity: \n{tracker_tmp.get_velocity().flatten()}")
             self.next_id += 1
 
     def update_trackers(self, detections, matches):
@@ -73,15 +72,15 @@ class TrackerManager:
         for match in matches:
             # tracker_idx, detection_idx = match
             detection_idx, tracker_idx = match
-            print(f"state before update :\n{self.trackers[tracker_idx].get_state().flatten()}")
-            print(f"update using {detections[detection_idx][:7]}")
+            # print(f"state before update :\n{self.trackers[tracker_idx].get_state().flatten()}")
+            # print(f"update using {detections[detection_idx][:7]}")
             self.trackers[tracker_idx].update(detections[detection_idx][:7])
-            print(f"state after update :\n{self.trackers[tracker_idx].get_state().flatten()}")
+            # print(f"state after update :\n{self.trackers[tracker_idx].get_state().flatten()}")
             self.trackers[tracker_idx].hits += 1
             self.trackers[tracker_idx].time_since_update = 0
             self.trackers[tracker_idx].info['score'] = detections[detection_idx][8]
             self.trackers[tracker_idx].info['class_id'] = detections[detection_idx][7]
-            print(f"get velocity :{self.trackers[tracker_idx].get_velocity().flatten()}")
+            # print(f"get velocity :{self.trackers[tracker_idx].get_velocity().flatten()}")
     def increment_age_unmatched_trackers(self, unmatched_trackers):
         # Increase the age of unmatched trackers
         for idx in unmatched_trackers:
@@ -118,20 +117,22 @@ def main():
     print("Start tracking")
     for frame_idx, input_file in enumerate(input_files):
         # Load detections from the current frame
-        print(f"track for detection {input_file}")
+        print(f"tracking for detection {input_file}")
         detection_file_path = os.path.join(args.input_folder, input_file)
         detections = get_detections(detection_file_path)  # Assuming detections are comma-separated
 
         # Update tracker manager with current detections
+        # input detections format : x,y,z,w,l,h,yaw,class_id,score 
         tracker_manager.update(detections)
 
         # 获取当前的跟踪结果 { x,y,z,w,l,h,yaw,score,class_id,track_id }
         tracks = tracker_manager.get_tracks()
 
-        print(f"当前第 {frame_idx} 帧的跟踪结果：{tracks}")
+        # print(f"当前第 {frame_idx} 帧的跟踪结果：{tracks}")
 
         # 保存当前帧的跟踪结果
-        output_file_path = os.path.join(args.output_folder, f'{frame_idx:06d}.txt')
+        # output_file_path = os.path.join(args.output_folder, f'{frame_idx:06d}.txt')
+        output_file_path = os.path.join(args.output_folder, input_file)
         np.savetxt(output_file_path, tracks, delimiter=' ', fmt='%f')
         # if frame_idx == 10:
         #     break

@@ -45,7 +45,7 @@ public:
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
 associate_detections_to_trackers(const std::vector<Box3D>& detections,
                                  const std::vector<Box3D>& trackers,
-                                 float iou_threshold = 0.3);
+                                 float iou_threshold = 0.1);
 
 // 打印匹配结果,测试时使用
 void print_results(const std::vector<std::array<int, 2>>& matches,

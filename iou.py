@@ -71,7 +71,7 @@ def convex_area(boxa_bottom, boxb_bottom):
 
     # print(f"boxa: {boxa_bottom}\n")
     # print(f"boxb: {boxb_bottom}")
-    print("use convexhull ")
+    # print("use convexhull ")
     all_corners = np.vstack((boxa_bottom, boxb_bottom))
     C = ConvexHull(all_corners)
     convex_corners = all_corners[C.vertices]

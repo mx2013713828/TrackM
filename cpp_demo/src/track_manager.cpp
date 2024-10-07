@@ -45,7 +45,7 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
 
         // 将检测结果与跟踪器关联
 
-        auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states);
+        auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states, 0.1);
         // 打印 matches
         std::cout << "Matches:" << std::endl;
         for (const auto& match : matches) {

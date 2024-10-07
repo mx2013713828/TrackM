@@ -7,3 +7,4 @@ cpp_demo/test_giou
 .vscode/*
 cpp_demo/test_trackm
 cpp_demo/lib/libtrackm.so
+*.mp4
