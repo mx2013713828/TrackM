@@ -74,7 +74,7 @@ class TrackerManager:
             detection_idx, tracker_idx = match
             # print(f"state before update :\n{self.trackers[tracker_idx].get_state().flatten()}")
             # print(f"update using {detections[detection_idx][:7]}")
-            self.trackers[tracker_idx].update(detections[detection_idx][:7])
+            self.trackers[tracker_idx].update(detections[detection_idx][:7], detections[detection_idx][8])
             # print(f"state after update :\n{self.trackers[tracker_idx].get_state().flatten()}")
             self.trackers[tracker_idx].hits += 1
             self.trackers[tracker_idx].time_since_update = 0

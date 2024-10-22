@@ -69,15 +69,17 @@ def box_to_corners_2d(bbox):
     return [pc0.tolist(), pc1.tolist(), pc2.tolist(), pc3.tolist()]
 
 # 4. 自动播放点云和检测框并保存为视频
-def visualize_with_video_output(pc_files, detection_files, video_path, pause_time=0.1, 
+def visualize_with_video_output(pcd_folder, detection_files, video_path, pause_time=0.1, 
                                 x_range=None, y_range=None, z_range=None):
     fig = plt.figure(figsize=(24, 24))  # 增大显示窗口
     writer = FFMpegWriter(fps=int(1/pause_time))  # 使用 FFmpeg 保存视频
 
     with writer.saving(fig, video_path, dpi=100):
-        for pcd_file, detection_file in zip(pc_files, detection_files):
+        # for pcd_file, detection_file in zip(pc_files, detection_files):
+        for detection_file in detection_files:
             plt.clf()  # 清除之前的图像以显示新帧
-            
+            pcd_file = os.path.join(pcd_folder, os.path.basename(detection_file).split('.')[0] + '.pcd')
+            print(f"processing point cloud : {os.path.basename(pcd_file)}")
             # 加载并过滤点云
             pc = load_point_cloud_within_range(pcd_file, x_range=x_range, y_range=y_range, z_range=z_range)
 
@@ -110,7 +112,7 @@ def visualize_with_video_output(pc_files, detection_files, video_path, pause_tim
                           head_width=0.7, head_length=0.8, fc='orange', ec='orange')
 
                 # 在框上显示 class_id 和 track_id
-                plt.text(cx, cy + 1, f"ID: {detection['class_id']}, Track: {detection['track_id']}",
+                plt.text(cx, cy + 1, f"CID: {detection['class_id']}, TID: {detection['track_id']}",
                          fontsize=10, color='blue', bbox=dict(facecolor='white', alpha=0.5))
 
             # 在左上角显示当前帧文件名
@@ -131,11 +133,11 @@ def visualize_with_video_output(pc_files, detection_files, video_path, pause_tim
 def process_folders_with_video_output(pcd_folder, detection_folder, video_path, pause_time=0.1, 
                                       x_range=None, y_range=None, z_range=None):
     # 获取所有文件
-    pcd_files = sorted([os.path.join(pcd_folder, f) for f in os.listdir(pcd_folder) if f.endswith('.pcd') or f.endswith('.bin')])
+    # pcd_files = sorted([os.path.join(pcd_folder, f) for f in os.listdir(pcd_folder) if f.endswith('.pcd') or f.endswith('.bin')])
     detection_files = sorted([os.path.join(detection_folder, f) for f in os.listdir(detection_folder) if f.endswith('.txt')])
 
     # 可视化和保存为视频
-    visualize_with_video_output(pcd_files, detection_files, video_path, pause_time=pause_time, 
+    visualize_with_video_output(pcd_folder, detection_files, video_path, pause_time=pause_time, 
                                 x_range=x_range, y_range=y_range, z_range=z_range)
 
 

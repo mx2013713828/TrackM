@@ -109,7 +109,7 @@ void TrackManager::update_trackers(const std::vector<Box3D>& detections, const s
         const Box3D& det = detections[detection_idx];
         Eigen::VectorXd bbox3D(7);
         bbox3D << det.x, det.y, det.z, det.w, det.l, det.h, det.yaw;
-        trackers[tracker_idx].update(bbox3D);
+        trackers[tracker_idx].update(bbox3D, det.score);
         trackers[tracker_idx].hits++;
         trackers[tracker_idx].time_since_update = 0;
         trackers[tracker_idx].info["score"] = det.score;

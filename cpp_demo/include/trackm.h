@@ -32,11 +32,14 @@ public:
 class KF : public Filter {
 public:
     KalmanFilter kf;
+    float prev_confidence = 0;  // 类内变量，存储前一帧的置信度
 
     KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID);
     void _init_kalman_filter();
     void predict();
-    void update(const Eigen::VectorXd& bbox3D);
+    // void update(const Eigen::VectorXd& bbox3D);
+    void update(const Eigen::VectorXd& bbox3D, float confidence);  // 新增 confidence 作为输入
+
     Eigen::VectorXd get_state() const; // 这里声明为 const
     Eigen::VectorXd get_velocity() const;
 };

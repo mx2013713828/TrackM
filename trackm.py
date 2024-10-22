@@ -30,6 +30,7 @@ class KF(Filter):
         self.kf = KalmanFilter(dim_x=10, dim_z=7)
         self._init_kalman_filter()
         self.kf.x[:7] = self.initial_pos.reshape((7, 1))
+        self.prev_confidence = 0  # 初始化时保存置信度
 
     def _init_kalman_filter(self):
         """Initialize the Kalman Filter matrices."""
@@ -80,17 +81,62 @@ class KF(Filter):
     #     self.kf.update(bbox3D.reshape((7, 1)))
     #     # self.kf.x[6] = bbox3D[6]
 
-    def update(self, bbox3D: np.ndarray):
-        """根据新检测框更新卡尔曼滤波状态,处理yaw周期性问题"""
+    # def update(self, bbox3D: np.ndarray):
+    #     """根据新检测框更新卡尔曼滤波状态,处理yaw周期性问题"""
+    #     # 获取当前的卡尔曼滤波器的 yaw 值
+    #     previous_yaw = self.kf.x[6, 0]
+    #     new_yaw = bbox3D[6]
+
+    #     # 计算角度差，确保差值在 [-pi, pi] 范围内
+    #     yaw_diff = new_yaw - previous_yaw
+    #     yaw_diff = limit_angle(yaw_diff)
+
+    #     # 更新 yaw 值，保持平滑过渡
+    #     bbox3D[6] = previous_yaw + yaw_diff
+
+    #     # 调用卡尔曼滤波器的更新方法
+    #     self.kf.update(bbox3D.reshape((7, 1)))
+
+    #     # 确保更新后的 yaw 在 [-pi, pi] 范围内
+    #     self.kf.x[6] = limit_angle(self.kf.x[6])
+
+    def update(self, bbox3D: np.ndarray, confidence: float):
+        """
+        根据新检测框更新卡尔曼滤波状态, 处理yaw周期性问题,并根据置信度和hits选择更优的yaw
+        :param bbox3D: 输入的3D检测框
+        :param confidence: 当前帧检测框的置信度
+        """
         # 获取当前的卡尔曼滤波器的 yaw 值
         previous_yaw = self.kf.x[6, 0]
         new_yaw = bbox3D[6]
 
-        # 计算角度差，确保差值在 [-pi, pi] 范围内
-        yaw_diff = new_yaw - previous_yaw
-        yaw_diff = limit_angle(yaw_diff)
+        # 检查 yaw 的突变情况
+        yaw_diff = abs(previous_yaw - new_yaw)
+        large_yaw_change = yaw_diff > np.pi / 2
 
-        # 更新 yaw 值，保持平滑过渡
+        if large_yaw_change:
+            # 当 yaw 变化过大时，判断是否为刚开始跟踪（hits 较少）
+            if self.hits < 3:
+                # 根据置信度高低决定采用哪个 yaw
+                if confidence > self.prev_confidence:
+                    print(f"Adopting new yaw ({new_yaw}) due to higher confidence ({confidence} > {prev_confidence})")
+                    chosen_yaw = new_yaw
+                elif confidence < self.prev_confidence:
+                    print(f"Keeping previous yaw ({previous_yaw}) due to higher previous confidence ({prev_confidence} > {confidence})")
+                    chosen_yaw = previous_yaw
+                else:
+                    print(f"Similar confidence levels, smoothing yaw transition between {previous_yaw} and {new_yaw}")
+                    chosen_yaw = (previous_yaw + new_yaw) / 2  # 平滑过渡
+            else:
+                # 当 hits 较多时，忽略这次大的 yaw 变化，保持之前的状态
+                print(f"Large yaw change detected: {previous_yaw} -> {new_yaw}, ignoring update due to stability.")
+                chosen_yaw = previous_yaw  # 忽略此次更新
+        else:
+            # 如果 yaw 没有大的变化，直接采用新的 yaw
+            chosen_yaw = new_yaw
+
+        # 更新卡尔曼滤波器状态
+        yaw_diff = limit_angle(chosen_yaw - previous_yaw)
         bbox3D[6] = previous_yaw + yaw_diff
 
         # 调用卡尔曼滤波器的更新方法
@@ -98,6 +144,7 @@ class KF(Filter):
 
         # 确保更新后的 yaw 在 [-pi, pi] 范围内
         self.kf.x[6] = limit_angle(self.kf.x[6])
+        self.prev_confidence = confidence
 
     def get_state(self) -> np.ndarray:
         """Return the current state estimate."""

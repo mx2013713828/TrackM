@@ -17,7 +17,7 @@ bool compareFileNames(const std::string& a, const std::string& b) {
 }
 
 int main() {
-    std::string folderPath = "/media/sdlg/DataSet/eval/txt_result/pcd_sim_data_test56/"; // 替换为你的文件夹路径
+    std::string folderPath = "../data/detections/test/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
 
     // 打开目录

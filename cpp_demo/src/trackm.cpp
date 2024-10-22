@@ -57,23 +57,71 @@ void KF::predict() {
 //     kf.update(bbox3D);
 // }
 
-void KF::update(const Eigen::VectorXd& bbox3D) {
+// void KF::update(const Eigen::VectorXd& bbox3D) {
+//     // 获取卡尔曼滤波器中的 yaw 值
+//     double previous_yaw = kf.x(6);
+//     double new_yaw = bbox3D(6);
+
+//     // 计算yaw的差值并限制在[-pi, pi]
+//     double yaw_diff = limit_angle(new_yaw - previous_yaw);
+
+//     // 使用平滑后的yaw值更新bbox3D的yaw
+//     Eigen::VectorXd smoothed_bbox = bbox3D;
+//     smoothed_bbox(6) = previous_yaw + yaw_diff;
+
+//     // 更新卡尔曼滤波器状态
+//     kf.update(smoothed_bbox);
+
+//     // 确保更新后的yaw值在[-pi, pi]范围内
+//     kf.x(6) = limit_angle(kf.x(6));
+// }
+
+void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     // 获取卡尔曼滤波器中的 yaw 值
     double previous_yaw = kf.x(6);
     double new_yaw = bbox3D(6);
 
-    // 计算yaw的差值并限制在[-pi, pi]
+    // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
     double yaw_diff = limit_angle(new_yaw - previous_yaw);
+    bool large_yaw_change = std::abs(yaw_diff) > M_PI / 2;
 
-    // 使用平滑后的yaw值更新bbox3D的yaw
+    if (large_yaw_change) {
+        // 判断 hits 是否较少（例如，hits 小于 3 时认为刚开始）
+        if (this->hits < 6) {
+            // 根据置信度高低决定采用哪个 yaw
+            if (confidence > this->prev_confidence) {
+                std::cout << "Adopting new yaw (" << new_yaw << ") due to higher confidence (" 
+                          << confidence << " > " << this->prev_confidence << ")" << std::endl;
+                // 采用新yaw
+            } else if (confidence < this->prev_confidence) {
+                std::cout << "Keeping previous yaw (" << previous_yaw << ") due to higher previous confidence (" 
+                          << this->prev_confidence << " > " << confidence << ")" << std::endl;
+                new_yaw = previous_yaw;  // 保持原来的yaw
+            } else {
+                std::cout << "Similar confidence levels, smoothing yaw transition between " 
+                          << previous_yaw << " and " << new_yaw << std::endl;
+                new_yaw = (previous_yaw + new_yaw) / 2;  // 平滑过渡
+            }
+        } else {
+            // 当 hits 较多时，忽略大的 yaw 变化，保持之前的状态
+            std::cout << "Large yaw change detected: " << previous_yaw << " -> " << new_yaw 
+                      << ", ignoring update due to stability." << std::endl;
+            new_yaw = previous_yaw;  // 忽略更新
+        }
+    }
+
+    // 使用平滑后的 yaw 值更新 bbox3D 的 yaw
     Eigen::VectorXd smoothed_bbox = bbox3D;
-    smoothed_bbox(6) = previous_yaw + yaw_diff;
+    smoothed_bbox(6) = previous_yaw + limit_angle(new_yaw - previous_yaw);
 
     // 更新卡尔曼滤波器状态
     kf.update(smoothed_bbox);
 
-    // 确保更新后的yaw值在[-pi, pi]范围内
+    // 确保更新后的 yaw 值在 [-pi, pi] 范围内
     kf.x(6) = limit_angle(kf.x(6));
+
+    // 更新 prev_confidence 为当前帧的置信度
+    this->prev_confidence = confidence;
 }
 
 Eigen::VectorXd KF::get_state() const {
