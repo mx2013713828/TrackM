@@ -24,57 +24,52 @@ double limit_angle(double angle) {
     return angle;
 }
 
-Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID)
-    : initial_pos(bbox3D), time_since_update(0), id(ID), hits(1), info(info) {}
+Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
+    : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
 
-KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID)
-    : Filter(bbox3D, info, ID), kf(10, 7) {
+KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
+    : Filter(bbox3D, info, Track_ID), kf(10, 7) {
     _init_kalman_filter();
 }
 
 void KF::_init_kalman_filter() {
+    // kf.F = Eigen::MatrixXd::Identity(10, 10);
+    // kf.F(0, 7) = kf.F(1, 8) = kf.F(2, 9) = 1;
+    double dt = 0.1; 
+
     kf.F = Eigen::MatrixXd::Identity(10, 10);
-    kf.F(0, 7) = kf.F(1, 8) = kf.F(2, 9) = 1;
+    kf.F(0, 7) = dt; 
+    kf.F(1, 8) = dt; 
+    kf.F(2, 9) = dt; 
 
     kf.H = Eigen::MatrixXd::Zero(7, 10);
     for (int i = 0; i < 7; ++i) {
         kf.H(i, i) = 1;
     }
-    kf.P.bottomRightCorner(3, 3) *= 1000;
+    kf.P.bottomRightCorner(3, 3) *= 1000; // 加大速度相关的不确定性
     kf.P *= 10;
 
     kf.Q.bottomRightCorner(3, 3) *= 0.01;
     kf.x.head<7>() = initial_pos;
+    Box3D initial_box(initial_pos, this->info["class_id"],this->info["score"],this->track_id);
 
-    
+    track_history.push_back(initial_box);
 }
 
 void KF::predict() {
     kf.predict();
 }
+Eigen::VectorXd KF::get_state() const {
+    return kf.x;
+}
 
-// void KF::update(const Eigen::VectorXd& bbox3D) {
-//     kf.update(bbox3D);
-// }
+Eigen::VectorXd KF::get_velocity() const {
+    return kf.x.tail<3>();
+}
 
-// void KF::update(const Eigen::VectorXd& bbox3D) {
-//     // 获取卡尔曼滤波器中的 yaw 值
-//     double previous_yaw = kf.x(6);
-//     double new_yaw = bbox3D(6);
-
-//     // 计算yaw的差值并限制在[-pi, pi]
-//     double yaw_diff = limit_angle(new_yaw - previous_yaw);
-
-//     // 使用平滑后的yaw值更新bbox3D的yaw
-//     Eigen::VectorXd smoothed_bbox = bbox3D;
-//     smoothed_bbox(6) = previous_yaw + yaw_diff;
-
-//     // 更新卡尔曼滤波器状态
-//     kf.update(smoothed_bbox);
-
-//     // 确保更新后的yaw值在[-pi, pi]范围内
-//     kf.x(6) = limit_angle(kf.x(6));
-// }
+const std::vector<Box3D>& KF::get_history() const {
+    return track_history;
+}
 
 void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     // 获取卡尔曼滤波器中的 yaw 值
@@ -124,13 +119,7 @@ void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     this->prev_confidence = confidence;
 }
 
-Eigen::VectorXd KF::get_state() const {
-    return kf.x;
-}
 
-Eigen::VectorXd KF::get_velocity() const {
-    return kf.x.tail<3>();
-}
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
 associate_detections_to_trackers(const std::vector<Box3D>& detections,

@@ -22,19 +22,21 @@ class Filter {
 public:
     Eigen::VectorXd initial_pos;
     int time_since_update;
-    int id;
+    int track_id;
     int hits;
     std::unordered_map<std::string, float> info;
 
-    Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID);
+    Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
 };
 
 class KF : public Filter {
 public:
     KalmanFilter kf;
+    std::vector<Box3D> track_history;  // 用于记录每次的 bbox
+
     float prev_confidence = 0;  // 类内变量，存储前一帧的置信度
 
-    KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int ID);
+    KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
     void _init_kalman_filter();
     void predict();
     // void update(const Eigen::VectorXd& bbox3D);
@@ -42,6 +44,8 @@ public:
 
     Eigen::VectorXd get_state() const; // 这里声明为 const
     Eigen::VectorXd get_velocity() const;
+    const std::vector<Box3D>& get_history() const;  // 新增历史记录方法
+
 };
 
 

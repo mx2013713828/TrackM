@@ -84,15 +84,36 @@ int main() {
         for (const auto& track : tracks) {
             std::cout << " | Position: (" << track.x << ", " << track.y << ", " << track.z << ") \n" <<" | Dim: ("<< \
             track.w<< ", "<<track.l<<", "<<track.h<<")" <<" yaw: ("<<track.yaw<<") Class_id: ("<<track.class_id <<") class_score: ("<<track.score<<") Track_id: " << track.track_id << std::endl;
-            savefile<<track.x<<" "<<track.y<<" "<<track.z<<" "<<track.w<<" "<<track.l<<" "<<track.h<<" "<<track.yaw<<" "<<track.class_id<<" "<<track.score<<" "<<track.track_id<<std::endl;
-        }
-        
+            savefile<<track.x<<" "<<track.y<<" "<<track.z<<" "<<track.w<<" "<<track.l<<" "<<track.h<<" "<<track.yaw<<" "<<track.score<<" "<<track.class_id<<" "<<track.track_id<<std::endl;
+        }        
         } else {
             std::cerr << "Failed to open file: " << filePath << std::endl;
         }
         n++;
         // if(n >10){break;}
     }
+
+    // 文件处理结束后，统一打印所有的tracker
+    std::vector<KF>& trackers = track_manager.get_all_trackers();
+    for (const auto& tracker : trackers) {
+        Eigen::VectorXd velocity = tracker.get_velocity();
+        std::cout << "Tracker ID: " << tracker.track_id << " - Velocity: " 
+                << velocity.transpose() << std::endl; // 假设有一个 get_id() 方法获取 tracker 的 ID
+    }
+    // 打印所有track的历史轨迹
+    // std::cout << "Track history after processing all files:" << std::endl;
+    // for (const auto& tracker : trackers) {
+    //     const std::vector<Box3D>& history = tracker.get_history();
+    //     std::cout << "Tracker ID: " << tracker.track_id << std::endl;
+    //     for (const auto& box : history) {
+    //         std::cout << "Position: (" << box.x << ", " << box.y << ", " << box.z << "), "
+    //                 << "Dimensions: (w=" << box.w << ", l=" << box.l << ", h=" << box.h << "), "
+    //                 << "class_id:(" << box.class_id << " )"
+    //                 << "Yaw: " << box.yaw << ", "
+    //                 << "Score: " << box.score << std::endl;
+    //     }
+    //     std::cout << std::endl;
+    // }
 
     return 0;
 }

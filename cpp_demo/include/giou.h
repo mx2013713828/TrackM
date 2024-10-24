@@ -43,7 +43,7 @@ struct Bndbox {
 };
 
 struct Box3D {
-    float x, y, z, w, l, h, yaw;
+    float x, y, z, w, l, h, vx,vy,yaw;
     int class_id;
     float score;
     int track_id;

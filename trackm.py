@@ -228,6 +228,6 @@ if __name__ == "__main__":
     for match in matches:
         trackers[match[1]].update(detections[match[0]])
     # Handle unmatched detections (create new trackers) and unmatched trackers
-    print("Matches: \n", matches)
-    print("Unmatched Detections:", unmatched_detections)
-    print("Unmatched Trackers:", unmatched_trackers)
+    # print("Matches: \n", matches)
+    # print("Unmatched Detections:", unmatched_detections)
+    # print("Unmatched Trackers:", unmatched_trackers)

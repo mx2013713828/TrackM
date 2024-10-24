@@ -23,7 +23,7 @@ TrackManager::TrackManager(int max_age, int min_hits)
     }
 
 void TrackManager::update(const std::vector<Box3D>& detections) {
-    std::cout<<"迭代update函数"<<std::endl;
+    // std::cout<<"迭代update函数"<<std::endl;
     // 预测所有跟踪器的当前状态
     for (auto& tracker : trackers) {
         tracker.predict();
@@ -47,22 +47,22 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
 
         auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states, 0.1);
         // 打印 matches
-        std::cout << "Matches:" << std::endl;
-        for (const auto& match : matches) {
-            std::cout << "(" << match[0] << ", " << match[1] << ")" << std::endl;
-        }
+        // std::cout << "Matches:" << std::endl;
+        // for (const auto& match : matches) {
+        //     std::cout << "(" << match[0] << ", " << match[1] << ")" << std::endl;
+        // }
 
         // 打印 unmatched_detections
-        std::cout << "Unmatched Detections:" << std::endl;
-        for (const auto& detection : unmatched_detections) {
-            std::cout << detection << std::endl;
-        }
+        // std::cout << "Unmatched Detections:" << std::endl;
+        // for (const auto& detection : unmatched_detections) {
+        //     std::cout << detection << std::endl;
+        // }
 
-        // 打印 unmatched_trackers
-        std::cout << "Unmatched Trackers:" << std::endl;
-        for (const auto& tracker : unmatched_trackers) {
-            std::cout << tracker << std::endl;
-        }
+        // // 打印 unmatched_trackers
+        // std::cout << "Unmatched Trackers:" << std::endl;
+        // for (const auto& tracker : unmatched_trackers) {
+        //     std::cout << tracker << std::endl;
+        // }
 
         // 更新命中的跟踪器
         update_trackers(detections, matches);
@@ -70,7 +70,7 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
         // 对未命中的检测框创建新的跟踪器
         create_new_trackers(detections, unmatched_detections);
 
-        // 增加未命中跟踪器的age
+        // 增加未命中跟踪器的age ## 
         increment_age_unmatched_trackers(unmatched_trackers);
     }
 
@@ -85,13 +85,14 @@ std::vector<Box3D> TrackManager::get_tracks() {
     for (const auto& tracker : trackers) {
         // std::cout<<"time_since_update: " <<tracker.time_since_update <<std::endl;
         if (tracker.hits >= min_hits) {
-            reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.id);
+            reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.track_id);
         }
     }
     return reliable_tracks;
 }
 
 
+// 初始化时，将第一帧的检测加入历史轨迹中
 void TrackManager::create_new_trackers(const std::vector<Box3D>& detections, const std::vector<int>& unmatched_detections) {
     for (int idx : unmatched_detections) {
         const Box3D& det = detections[idx];
@@ -102,6 +103,7 @@ void TrackManager::create_new_trackers(const std::vector<Box3D>& detections, con
     }
 }
 
+// track_history 保存历史轨迹
 void TrackManager::update_trackers(const std::vector<Box3D>& detections, const std::vector<std::array<int, 2>>& matches) {
     for (const auto& match : matches) {
         int detection_idx = match[0];
@@ -114,13 +116,14 @@ void TrackManager::update_trackers(const std::vector<Box3D>& detections, const s
         trackers[tracker_idx].time_since_update = 0;
         trackers[tracker_idx].info["score"] = det.score;
         trackers[tracker_idx].info["class_id"] = static_cast<float>(det.class_id);
+        // 将当前检测结果转化为 Box3D，并保存到 track_history 中
+        Box3D updated_box(bbox3D, det.class_id, det.score, trackers[tracker_idx].track_id);
+        trackers[tracker_idx].track_history.push_back(updated_box);
     }
 }
 
 void TrackManager::increment_age_unmatched_trackers(const std::vector<int>& unmatched_trackers) {
     for (int idx : unmatched_trackers) {
-        // std::cout<<"增加为匹配上的跟踪的年龄前 trackers["<<idx<<"].time_since_update:" <<trackers[idx].time_since_update <<" track_id: "<<trackers[idx].id<<std::endl;
         trackers[idx].time_since_update++;
-        // std::cout<<"增加为匹配上的跟踪的年龄后 trackers["<<idx<<"].time_since_update:" <<trackers[idx].time_since_update <<" track_id: "<<trackers[idx].id<<std::endl;
     }
 }
