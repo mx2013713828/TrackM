@@ -1,3 +1,4 @@
+
 /*
  * File:        trackm.cpp
  * Author:      Yufeng Ma
@@ -28,29 +29,34 @@ Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::stri
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
 
 KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : Filter(bbox3D, info, Track_ID), kf(10, 7) {
+    : Filter(bbox3D, info, Track_ID), kf(11, 7) {
     _init_kalman_filter();
 }
 
 void KF::_init_kalman_filter() {
-    // kf.F = Eigen::MatrixXd::Identity(10, 10);
     // kf.F(0, 7) = kf.F(1, 8) = kf.F(2, 9) = 1;
-    double dt = 0.1; 
+    double dt = 0.1;
 
-    kf.F = Eigen::MatrixXd::Identity(10, 10);
     kf.F(0, 7) = dt; 
     kf.F(1, 8) = dt; 
     kf.F(2, 9) = dt; 
+    kf.F(6, 10) = dt; // yaw 更新 (yaw = yaw + yaw_rate * dt)
 
-    kf.H = Eigen::MatrixXd::Zero(7, 10);
     for (int i = 0; i < 7; ++i) {
         kf.H(i, i) = 1;
     }
-    kf.P.bottomRightCorner(3, 3) *= 1000; // 加大速度相关的不确定性
+    
+    kf.P.bottomRightCorner(4, 4) *= 100; // 加大速度相关的不确定性
     kf.P *= 10;
 
-    kf.Q.bottomRightCorner(3, 3) *= 0.01;
+    // 过程噪声协方差矩阵 Q
+    kf.Q.bottomRightCorner(4, 4) *= 10; // 增大速度过程噪声，提高系统对变化的敏感性
+
+    // 测量噪声协方差矩阵 R
+    kf.R *= 0.1; // 减小测量噪声，增强对传感器数据的信任
+
     kf.x.head<7>() = initial_pos;
+
     Box3D initial_box(initial_pos, this->info["class_id"],this->info["score"],this->track_id);
 
     track_history.push_back(initial_box);
@@ -67,9 +73,36 @@ Eigen::VectorXd KF::get_velocity() const {
     return kf.x.tail<3>();
 }
 
+float KF::get_yaw_speed() const {
+    // 获取状态向量中的速度分量 vx 和 vy
+    float vx = kf.x(7); // 
+    float vy = kf.x(8); // 
+    float yaw = kf.x(6); // 
+
+    // 计算沿 yaw 方向的速度    
+    float yaw_speed = vx * std::cos(yaw) + vy * std::sin(yaw);
+
+    // m/s
+    return yaw_speed;
+}
+
 const std::vector<Box3D>& KF::get_history() const {
     return track_history;
 }
+
+const std::vector<Box3D>& KF::predict_future(int steps) {
+    track_future.clear();  // 清空之前的预测记录
+    KalmanFilter future_kf = kf;
+
+    for (int i = 0; i < steps; ++i) {
+        future_kf.predict();
+        track_future.push_back(future_kf.x);  // 假设 Box3D 构造函数接受状态向量
+    }
+
+    return track_future;  // 返回 const 引用
+}
+
+
 
 void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     // 获取卡尔曼滤波器中的 yaw 值

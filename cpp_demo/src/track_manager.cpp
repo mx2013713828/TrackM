@@ -44,25 +44,7 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
         }
 
         // 将检测结果与跟踪器关联
-
         auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states, 0.1);
-        // 打印 matches
-        // std::cout << "Matches:" << std::endl;
-        // for (const auto& match : matches) {
-        //     std::cout << "(" << match[0] << ", " << match[1] << ")" << std::endl;
-        // }
-
-        // 打印 unmatched_detections
-        // std::cout << "Unmatched Detections:" << std::endl;
-        // for (const auto& detection : unmatched_detections) {
-        //     std::cout << detection << std::endl;
-        // }
-
-        // // 打印 unmatched_trackers
-        // std::cout << "Unmatched Trackers:" << std::endl;
-        // for (const auto& tracker : unmatched_trackers) {
-        //     std::cout << tracker << std::endl;
-        // }
 
         // 更新命中的跟踪器
         update_trackers(detections, matches);
@@ -80,17 +62,17 @@ void TrackManager::update(const std::vector<Box3D>& detections) {
                    trackers.end());
 }
 
-std::vector<Box3D> TrackManager::get_tracks() {
+std::vector<Box3D> TrackManager::get_reliable_tracks() {
     std::vector<Box3D> reliable_tracks;
     for (const auto& tracker : trackers) {
         // std::cout<<"time_since_update: " <<tracker.time_since_update <<std::endl;
         if (tracker.hits >= min_hits) {
-            reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.track_id);
+            reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.track_id, tracker.get_yaw_speed());
         }
     }
     return reliable_tracks;
 }
-
+ 
 
 // 初始化时，将第一帧的检测加入历史轨迹中
 void TrackManager::create_new_trackers(const std::vector<Box3D>& detections, const std::vector<int>& unmatched_detections) {
@@ -103,7 +85,7 @@ void TrackManager::create_new_trackers(const std::vector<Box3D>& detections, con
     }
 }
 
-// track_history 保存历史轨迹
+// 添加track_history 保存历史轨迹
 void TrackManager::update_trackers(const std::vector<Box3D>& detections, const std::vector<std::array<int, 2>>& matches) {
     for (const auto& match : matches) {
         int detection_idx = match[0];
@@ -117,7 +99,11 @@ void TrackManager::update_trackers(const std::vector<Box3D>& detections, const s
         trackers[tracker_idx].info["score"] = det.score;
         trackers[tracker_idx].info["class_id"] = static_cast<float>(det.class_id);
         // 将当前检测结果转化为 Box3D，并保存到 track_history 中
-        Box3D updated_box(bbox3D, det.class_id, det.score, trackers[tracker_idx].track_id);
+        // Eigen::VectorXd track_box3d(7);
+        // track_box3d = trackers[tracker_idx].get_state();
+        Box3D updated_box(trackers[tracker_idx].get_state(), det.class_id, det.score, trackers[tracker_idx].track_id, trackers[tracker_idx].get_yaw_speed());
+
+        // Box3D updated_box(bbox3D, det.class_id, det.score, trackers[tracker_idx].track_id);
         trackers[tracker_idx].track_history.push_back(updated_box);
     }
 }

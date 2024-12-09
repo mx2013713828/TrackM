@@ -47,11 +47,12 @@ struct Box3D {
     int class_id;
     float score;
     int track_id;
+    float v_yaw;
     // 默认构造函数
-    Box3D() : x(0), y(0), z(0), w(0), l(0), h(0), yaw(0), class_id(-1), score(0), track_id(-1) {}
+    Box3D() : x(0), y(0), z(0), w(0), l(0), h(0), yaw(0), class_id(-1), score(0), track_id(-1), v_yaw(0) {}
 
     // 从 Eigen::VectorXd 初始化 Box3D
-    Box3D(const Eigen::VectorXd& bbox, int class_id_ = -1, float score_ = 0, int track_id_ = -1) {
+    Box3D(const Eigen::VectorXd& bbox, int class_id_ = -1, float score_ = 0, int track_id_ = -1, float v_yaw_ = 0) {
         x = bbox(0);
         y = bbox(1);
         z = bbox(2);
@@ -62,6 +63,7 @@ struct Box3D {
         class_id = class_id_;
         score = score_;
         track_id = track_id_;
+        v_yaw = v_yaw_;
     }
 
     // 从 Bndbox 初始化 Box3D beishan使用的检测结果结构

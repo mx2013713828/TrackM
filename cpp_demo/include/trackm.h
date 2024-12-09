@@ -33,7 +33,7 @@ class KF : public Filter {
 public:
     KalmanFilter kf;
     std::vector<Box3D> track_history;  // 用于记录每次的 bbox
-
+    std::vector<Box3D> track_future;
     float prev_confidence = 0;  // 类内变量，存储前一帧的置信度
 
     KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
@@ -45,6 +45,8 @@ public:
     Eigen::VectorXd get_state() const; // 这里声明为 const
     Eigen::VectorXd get_velocity() const;
     const std::vector<Box3D>& get_history() const;  // 新增历史记录方法
+    const std::vector<Box3D>& predict_future(int steps) ;
+    float get_yaw_speed() const;
 
 };
 

@@ -7,7 +7,7 @@
  *              multiple object trackers using the Kalman filter. The main 
  *              functionalities include:
  *              - update: Updates all trackers with new detections.
- *              - get_tracks: Returns the states of active trackers.
+ *              - get_reliable_tracks: Returns the states of active trackers.
  *              - create_new_trackers: Initializes new trackers for unmatched detections.
  *              - update_trackers: Updates trackers that match new detections.
  *              - increment_age_unmatched_trackers: Increases the age of unmatched trackers.
@@ -27,7 +27,7 @@ class TrackManager {
 public:
     TrackManager(int max_age, int min_hits); // 构造函数
     void update(const std::vector<Box3D>& detections); // 更新所有跟踪器
-    std::vector<Box3D> get_tracks(); // 返回有效跟踪器的状态
+    std::vector<Box3D> get_reliable_tracks (); // 返回有效跟踪器的状态
     std::vector<KF>& get_all_trackers() {
         return trackers;
     }

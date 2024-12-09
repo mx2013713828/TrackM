@@ -47,6 +47,24 @@ def parse_detection(txt_file):
             detections.append(detection)
     return detections
 
+# 解析未来轨迹的函数
+def parse_future_predictions(prediction_file):
+    future_predictions = []
+    with open(prediction_file, 'r') as f:
+        lines = f.readlines()
+        track_predictions = []
+        for line in lines:
+            # 解析预测框
+            values = list(map(float, line.strip().split()))
+            future_predictions.append({
+                'x': values[0], 'y': values[1], 'z': values[2],
+                'l': values[3], 'w': values[4], 'h': values[5],
+                'yaw': values[6], 'score': values[7], 'class_id': int(values[8]), 
+                'track_id': int(values[9])
+            })
+    return future_predictions
+
+
 # 3. 转换检测框到2D角点
 def box_to_corners_2d(bbox):
     """ 计算底部四个角点的坐标
@@ -69,7 +87,7 @@ def box_to_corners_2d(bbox):
     return [pc0.tolist(), pc1.tolist(), pc2.tolist(), pc3.tolist()]
 
 # 4. 自动播放点云和检测框并保存为视频
-def visualize_with_video_output(pcd_folder, detection_files, video_path, pause_time=0.1, 
+def visualize_with_video_output(pcd_folder, detection_files, video_path, prediction_folder=None,pause_time=0.1, 
                                 x_range=None, y_range=None, z_range=None):
     fig = plt.figure(figsize=(24, 24))  # 增大显示窗口
     writer = FFMpegWriter(fps=int(1/pause_time))  # 使用 FFmpeg 保存视频
@@ -86,6 +104,11 @@ def visualize_with_video_output(pcd_folder, detection_files, video_path, pause_t
             # 加载检测框
             detections = parse_detection(detection_file)
             
+            # 读取对应时刻的未来轨迹
+            if prediction_folder != None:
+                prediction_file = os.path.join(prediction_folder, os.path.basename(detection_file).replace('cpp_result', 'cpp_result_future'))
+                future_predictions = parse_future_predictions(prediction_file)
+
             # 绘制点云 (x, y)，增大点的大小
             plt.scatter(pc[:, 0], pc[:, 1], s=0.1, c='gray', label='Point Cloud')
 
@@ -115,6 +138,17 @@ def visualize_with_video_output(pcd_folder, detection_files, video_path, pause_t
                 plt.text(cx, cy + 1, f"CID: {detection['class_id']}, TID: {detection['track_id']}",
                          fontsize=10, color='blue', bbox=dict(facecolor='white', alpha=0.5))
 
+            # 绘制未来轨迹的中心点
+            if prediction_folder:
+                for future_track in future_predictions:
+                    # 获取每个预测框的中心点坐标
+                    center_x = future_track['x']
+                    center_y = future_track['y']
+                    
+                    # 绘制中心点，设置颜色、大小和透明度等
+                    plt.scatter(center_x, center_y, color='blue', marker='o', alpha=0.5)
+
+
             # 在左上角显示当前帧文件名
             plt.text(0.01, 0.99, f"Frame: {os.path.basename(pcd_file)}", 
                      fontsize=12, color='black', transform=plt.gca().transAxes,
@@ -130,14 +164,14 @@ def visualize_with_video_output(pcd_folder, detection_files, video_path, pause_t
             writer.grab_frame()  # 记录当前帧
 
 # 5. 处理文件夹中的 PCD 和检测文件
-def process_folders_with_video_output(pcd_folder, detection_folder, video_path, pause_time=0.1, 
+def process_folders_with_video_output(pcd_folder, detection_folder, video_path, prediction_folder = None,pause_time=0.1, 
                                       x_range=None, y_range=None, z_range=None):
     # 获取所有文件
     # pcd_files = sorted([os.path.join(pcd_folder, f) for f in os.listdir(pcd_folder) if f.endswith('.pcd') or f.endswith('.bin')])
     detection_files = sorted([os.path.join(detection_folder, f) for f in os.listdir(detection_folder) if f.endswith('.txt')])
 
     # 可视化和保存为视频
-    visualize_with_video_output(pcd_folder, detection_files, video_path, pause_time=pause_time, 
+    visualize_with_video_output(pcd_folder, detection_files, video_path, prediction_folder = prediction_folder, pause_time=pause_time, 
                                 x_range=x_range, y_range=y_range, z_range=z_range)
 
 
@@ -150,6 +184,8 @@ if __name__ == '__main__':
                         help='Path to the folder containing PCD files.')
     parser.add_argument('--detection_folder', type=str, required=True,
                         help='Path to the folder containing detection result TXT files.')
+    parser.add_argument('--prediction_folder', type=str, default=None,
+                        help='Path to the folder containing PCD files.')
     parser.add_argument('--video_path', type=str, required=True, help="保存视频的路径")
 
     # 解析命令行参数
@@ -157,7 +193,7 @@ if __name__ == '__main__':
 
     # 调用处理文件夹的函数
     # process_folders(args.pcd_folder, args.detection_folder)
-
-    process_folders_with_video_output(args.pcd_folder, args.detection_folder, args.video_path, 
+    
+    process_folders_with_video_output(args.pcd_folder, args.detection_folder, args.video_path, args.prediction_folder,
                                       pause_time=0.25, 
                                       x_range=[-42,42], y_range=[-30,78], z_range=[-2,8])
