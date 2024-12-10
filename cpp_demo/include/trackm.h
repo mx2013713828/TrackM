@@ -16,7 +16,8 @@
 #include <unordered_map>
 #include <Eigen/Dense>
 #include "giou.h"
-#include "kalman_filter.h" 
+// #include "kalman_filter.h" 
+#include "ekf.h"
 
 class Filter {
 public:
@@ -31,9 +32,12 @@ public:
 
 class KF : public Filter {
 public:
-    KalmanFilter kf;
+    // KalmanFilter kf;
+    EKalmanFilter kf;
     std::vector<Box3D> track_history;  // 用于记录每次的 bbox
     std::vector<Box3D> track_future;
+    // std::array<std::pair<float, float>, 20> track_future; // 保存最多 20 个预测点的 (x, y) 坐标
+
     float prev_confidence = 0;  // 类内变量，存储前一帧的置信度
 
     KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
@@ -45,7 +49,8 @@ public:
     Eigen::VectorXd get_state() const; // 这里声明为 const
     Eigen::VectorXd get_velocity() const;
     const std::vector<Box3D>& get_history() const;  // 新增历史记录方法
-    const std::vector<Box3D>& predict_future(int steps) ;
+    const std::vector<Box3D>& track_prediction(int steps) ;
+    // const std::array<std::pair<float, float>, 20>& track_prediction(int steps);
     float get_yaw_speed() const;
 
 };

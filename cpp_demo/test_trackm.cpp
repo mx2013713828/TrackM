@@ -106,7 +106,7 @@ int main() {
 
             // 再保存预测结果
             for (auto& tracker : trackers) {
-                const std::vector<Box3D>& future_predictions = tracker.predict_future(20);
+                const std::vector<Box3D>& future_predictions = tracker.track_prediction(20);
                 for (const auto& box : future_predictions) {
                         savefile_future << box.x << " " << box.y << " " << box.z <<" "
                                 << box.w << " " << box.l << " " << box.h << " "

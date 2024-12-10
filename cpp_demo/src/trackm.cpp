@@ -18,6 +18,7 @@
 #include <vector>
 #include <unordered_map>
 
+
 // 将角度限制在 [-pi, pi] 范围内
 double limit_angle(double angle) {
     while (angle > M_PI) angle -= 2.0 * M_PI;
@@ -45,13 +46,14 @@ void KF::_init_kalman_filter() {
     for (int i = 0; i < 7; ++i) {
         kf.H(i, i) = 1;
     }
-    
+
     kf.P.bottomRightCorner(4, 4) *= 100; // 加大速度相关的不确定性
     kf.P *= 10;
 
     // 过程噪声协方差矩阵 Q
-    kf.Q.bottomRightCorner(4, 4) *= 10; // 增大速度过程噪声，提高系统对变化的敏感性
-
+    kf.Q.bottomRightCorner(4, 4) *= 1; // 增大速度过程噪声，提高系统对变化的敏感性
+    // kf.Q(10, 10) = 0.1;
+    
     // 测量噪声协方差矩阵 R
     kf.R *= 0.1; // 减小测量噪声，增强对传感器数据的信任
 
@@ -90,9 +92,9 @@ const std::vector<Box3D>& KF::get_history() const {
     return track_history;
 }
 
-const std::vector<Box3D>& KF::predict_future(int steps) {
+const std::vector<Box3D>& KF::track_prediction(int steps) {
     track_future.clear();  // 清空之前的预测记录
-    KalmanFilter future_kf = kf;
+    EKalmanFilter future_kf = kf;
 
     for (int i = 0; i < steps; ++i) {
         future_kf.predict();
@@ -102,6 +104,25 @@ const std::vector<Box3D>& KF::predict_future(int steps) {
     return track_future;  // 返回 const 引用
 }
 
+// const std::array<std::pair<float, float>, 20>& KF::track_prediction(int steps) {
+//     // 限制步数，不能超过数组的容量
+//     int future_steps = std::min(steps, static_cast<int>(track_future.size()));
+
+//     // 创建一个临时的 EKF 作为未来预测的状态
+//     EKalmanFilter future_kf = kf;
+
+//     for (int i = 0; i < future_steps; ++i) {
+//         future_kf.predict(); // 执行一次预测
+//         track_future[i] = {future_kf.x(0), future_kf.x(1)}; // 只存储 x, y 坐标
+//     }
+
+//     // // 填充多余的点为默认值，保持数组的一致性
+//     // for (int i = future_steps; i < track_future.size(); ++i) {
+//     //     track_future[i] = {0.0, 0.0};
+//     // }
+
+//     return track_future;
+// }
 
 
 void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {

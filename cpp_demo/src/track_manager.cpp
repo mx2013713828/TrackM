@@ -11,7 +11,10 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <algorithm>
-#include <numeric> 
+#include <numeric>
+#include <numeric>
+#include <vector>
+#include <unordered_map> 
 #include "../include/trackm.h"
 #include "../include/kalman_filter.h"
 #include "../include/giou.h"
@@ -104,7 +107,7 @@ void TrackManager::update_trackers(const std::vector<Box3D>& detections, const s
         Box3D updated_box(trackers[tracker_idx].get_state(), det.class_id, det.score, trackers[tracker_idx].track_id, trackers[tracker_idx].get_yaw_speed());
 
         // Box3D updated_box(bbox3D, det.class_id, det.score, trackers[tracker_idx].track_id);
-        trackers[tracker_idx].track_history.push_back(updated_box);
+        // trackers[tracker_idx].track_history.push_back(updated_box);
     }
 }
 
