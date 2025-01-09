@@ -30,7 +30,7 @@ Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::stri
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
 
 KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : Filter(bbox3D, info, Track_ID), kf(11, 7) {
+    : Filter(bbox3D, info, Track_ID), ekf(11, 7) {
     _init_kalman_filter();
 }
 
@@ -38,26 +38,25 @@ void KF::_init_kalman_filter() {
     // kf.F(0, 7) = kf.F(1, 8) = kf.F(2, 9) = 1;
     double dt = 0.1;
 
-    kf.F(0, 7) = dt; 
-    kf.F(1, 8) = dt; 
-    kf.F(2, 9) = dt; 
-    kf.F(6, 10) = dt; // yaw 更新 (yaw = yaw + yaw_rate * dt)
+    ekf.F(0, 7) = dt; 
+    ekf.F(1, 8) = dt; 
+    ekf.F(2, 9) = dt; 
+    ekf.F(6, 10) = dt; // yaw 更新 (yaw = yaw + yaw_rate * dt)
 
     for (int i = 0; i < 7; ++i) {
-        kf.H(i, i) = 1;
+        ekf.H(i, i) = 1;
     }
 
-    kf.P.bottomRightCorner(4, 4) *= 100; // 加大速度相关的不确定性
-    kf.P *= 10;
+    ekf.P.bottomRightCorner(4, 4) *= 100; // 加大速度相关的不确定性
+    // kf.P *= 10;
 
     // 过程噪声协方差矩阵 Q
-    kf.Q.bottomRightCorner(4, 4) *= 1; // 增大速度过程噪声，提高系统对变化的敏感性
-    // kf.Q(10, 10) = 0.1;
-    
+    ekf.Q.bottomRightCorner(4, 4) *= 1; // 增大速度过程噪声，提高系统对变化的敏感性
+    ekf.Q(10, 10) = 0.1;
     // 测量噪声协方差矩阵 R
-    kf.R *= 0.1; // 减小测量噪声，增强对传感器数据的信任
+    ekf.R *= 0.1; // 减小测量噪声，增强对传感器数据的信任
 
-    kf.x.head<7>() = initial_pos;
+    ekf.x.head<7>() = initial_pos;
 
     Box3D initial_box(initial_pos, this->info["class_id"],this->info["score"],this->track_id);
 
@@ -65,21 +64,21 @@ void KF::_init_kalman_filter() {
 }
 
 void KF::predict() {
-    kf.predict();
+    ekf.predict();
 }
 Eigen::VectorXd KF::get_state() const {
-    return kf.x;
+    return ekf.x;
 }
 
 Eigen::VectorXd KF::get_velocity() const {
-    return kf.x.tail<3>();
+    return ekf.x.tail<3>();
 }
 
 float KF::get_yaw_speed() const {
     // 获取状态向量中的速度分量 vx 和 vy
-    float vx = kf.x(7); // 
-    float vy = kf.x(8); // 
-    float yaw = kf.x(6); // 
+    float vx = ekf.x(7); // 
+    float vy = ekf.x(8); // 
+    float yaw = ekf.x(6); // 
 
     // 计算沿 yaw 方向的速度    
     float yaw_speed = vx * std::cos(yaw) + vy * std::sin(yaw);
@@ -94,7 +93,7 @@ const std::vector<Box3D>& KF::get_history() const {
 
 const std::vector<Box3D>& KF::track_prediction(int steps) {
     track_future.clear();  // 清空之前的预测记录
-    EKalmanFilter future_kf = kf;
+    EKalmanFilter future_kf = ekf;
 
     for (int i = 0; i < steps; ++i) {
         future_kf.predict();
@@ -127,7 +126,7 @@ const std::vector<Box3D>& KF::track_prediction(int steps) {
 
 void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     // 获取卡尔曼滤波器中的 yaw 值
-    double previous_yaw = kf.x(6);
+    double previous_yaw = ekf.x(6);
     double new_yaw = bbox3D(6);
 
     // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
@@ -164,10 +163,10 @@ void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
     smoothed_bbox(6) = previous_yaw + limit_angle(new_yaw - previous_yaw);
 
     // 更新卡尔曼滤波器状态
-    kf.update(smoothed_bbox);
+    ekf.update(smoothed_bbox);
 
     // 确保更新后的 yaw 值在 [-pi, pi] 范围内
-    kf.x(6) = limit_angle(kf.x(6));
+    ekf.x(6) = limit_angle(ekf.x(6));
 
     // 更新 prev_confidence 为当前帧的置信度
     this->prev_confidence = confidence;

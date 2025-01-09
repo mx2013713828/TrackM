@@ -33,7 +33,7 @@ public:
 class KF : public Filter {
 public:
     // KalmanFilter kf;
-    EKalmanFilter kf;
+    EKalmanFilter ekf;
     std::vector<Box3D> track_history;  // 用于记录每次的 bbox
     std::vector<Box3D> track_future;
     // std::array<std::pair<float, float>, 20> track_future; // 保存最多 20 个预测点的 (x, y) 坐标

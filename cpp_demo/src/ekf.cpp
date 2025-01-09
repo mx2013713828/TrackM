@@ -12,7 +12,7 @@
 
 EKalmanFilter::EKalmanFilter(int state_dim, int measure_dim)
     : state_dim(state_dim), measure_dim(measure_dim) {
-    x = Eigen::VectorXd::Zero(state_dim);
+    x = Eigen::VectorXd::Zero(state_dim);  // x,y,z,w,l,h,yaw,vx,vy,vz,vyaw
     F = Eigen::MatrixXd::Identity(state_dim, state_dim);
     H = Eigen::MatrixXd::Zero(measure_dim, state_dim);
     P = Eigen::MatrixXd::Identity(state_dim, state_dim);

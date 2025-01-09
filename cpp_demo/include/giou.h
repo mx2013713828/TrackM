@@ -27,6 +27,54 @@
 #include <iostream>
 #include <Eigen/Dense>
 
+typedef struct 
+{
+    float x;
+    float y;
+    float z;    //　坐标点会用到该数据结构　　雷达点会用到该数据结构,　根据实际情况使用不同字段
+    float l; 
+    int   conf; // 置信度
+} point_t;
+
+typedef struct 
+{
+    int    classid;
+
+    int    x_pixel;    
+    int    y_pixel;
+    int    w_pixel;
+    int    h_pixel;
+    float  conf;
+
+    float  x_world;    // 车辆坐标系 左右偏移距离（单位：米)
+    float  y_world;    // 车辆坐标系 前后距离（单位：米)
+    float  z_world;    // 车辆坐标系 中心点高度(单位：米)
+    float  w_world;    // 宽度  若雷达障碍物, 则为矩形框的宽
+    float  l_world;    // 长度  若雷达障碍物, 则为矩形框的长
+    float  h_world;    // 高度　若雷达障碍物, 则为矩形框的高度
+
+    float  x_earth;    // 绝对坐标系或大地坐标系 若雷达障碍物, 则为矩形框中心点位置的坐标
+    float  y_earth;    // 绝对坐标系或大地坐标系 若雷达障碍物, 则为矩形框中心点位置的坐标
+    float  z_earth;    // 绝对坐标系或大地坐标系,若雷达障碍物, 则为矩形框中心点位置的坐标
+    float  heading_world;    // 航向弧度  在激光雷达障碍物使用此数据段时仅表示车辆坐标系下的航向，不代表大地坐标系下的航向
+    float  heading_earth; // 航向弧度  绝对坐标系或大地坐标系 若雷达障碍物, 则为障碍物在大地坐标系下的绝对航向 [-180 +180] 正北: 0度 正东:90度 正西:-90度
+    std::vector<point_t> points_earth; // 障碍物矩形框四个顶点的大地坐标系的值
+    std::vector<point_t> points_world; // 障碍物矩形框四个顶点的车辆坐标系的值
+    float  vx;         // km/h
+    float  vy;         // km/h
+    float  speed;      // km/h
+    int    property;   // 运动属性 比如 同向 交叉 等
+    float  k;          // k = x / y
+    float  s;          // 1:left 2:right 0:undefined
+    int    frames;     // 连续识别到几帧
+    int    track_id;
+
+    std::vector<point_t> points_world_predict; // 预测的该障碍物车辆坐标系下的轨迹
+    
+    long   time_stamp;
+} target_t;
+
+
 struct Bndbox {
     float x;    // 中心点坐标
     float y;    // 中心点坐标
