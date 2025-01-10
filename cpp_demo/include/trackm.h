@@ -28,6 +28,8 @@ public:
     std::unordered_map<std::string, float> info;
 
     Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
+    virtual void predict() = 0;
+    virtual void update(const target_t& detection, float confidence) = 0;
 };
 
 class KF : public Filter {
@@ -35,25 +37,36 @@ public:
     KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
     
     void predict() override;
-    void update(const Eigen::VectorXd& bbox3D, float confidence) override;
+    void update(const target_t& detection, float confidence) override;
     
     // 获取两个坐标系下的状态
     Eigen::VectorXd get_world_state() const;
     Eigen::VectorXd get_earth_state() const;
     
     // 获取两个坐标系下的预测轨迹
-    std::vector<point_t> track_world_prediction(int steps);
-    std::vector<point_t> track_earth_prediction(int steps);
+    std::vector<point_t> track_world_prediction(int steps) const;
+    std::vector<point_t> track_earth_prediction(int steps) const;
+
+    target_t last_detection;  // 存储最后一次更新的检测数据
+
+    // 添加缺失的函数声明
+    Eigen::VectorXd get_state() const;
+    Eigen::VectorXd get_velocity() const;
+    float get_yaw_speed() const;
+    const std::vector<Box3D>& get_history() const;
 
 private:
+    void _init_kalman_filter();
     EKalmanFilter ekf;
+    std::vector<Box3D> track_history;
+    float prev_confidence;
 };
 
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
 associate_detections_to_trackers(const std::vector<Box3D>& detections,
-                                 const std::vector<Box3D>& trackers,
-                                 float iou_threshold = 0.1);
+                               const std::vector<Box3D>& trackers,
+                               float iou_threshold = 0.1);
 
 // 打印匹配结果,测试时使用
 void print_results(const std::vector<std::array<int, 2>>& matches,

@@ -9,6 +9,7 @@
  */
 
 #include "../include/ekf.h"
+#include <iostream>
 
 EKalmanFilter::EKalmanFilter(int state_dim, int measure_dim)
     : state_dim(state_dim), measure_dim(measure_dim) {
@@ -63,15 +64,19 @@ Eigen::MatrixXd EKalmanFilter::calculate_jacobian_h(const Eigen::VectorXd& x) {
     Eigen::MatrixXd H_jacobian = Eigen::MatrixXd::Zero(measure_dim, state_dim); // 14x19
 
     // 车辆坐标系观测
-    for (int i = 0; i < 7; ++i) {
-        H_jacobian(i, i) = 1;  // 观测 x_world, y_world, z_world, w, l, h, heading_world
-    }
+    H_jacobian(0, 0) = 1;  // x_world -> x_world
+    H_jacobian(1, 1) = 1;  // y_world -> y_world
+    H_jacobian(2, 2) = 1;  // z_world -> z_world
+    H_jacobian(3, 3) = 1;  // w -> w
+    H_jacobian(4, 4) = 1;  // l -> l
+    H_jacobian(5, 5) = 1;  // h -> h
+    H_jacobian(6, 6) = 1;  // heading_world -> heading_world
 
     // 大地坐标系观测
-    H_jacobian(7, 11) = 1;   // 观测 x_earth
-    H_jacobian(8, 12) = 1;   // 观测 y_earth
-    H_jacobian(9, 13) = 1;   // 观测 z_earth
-    H_jacobian(10, 14) = 1;  // 观测 heading_earth
+    H_jacobian(7, 11) = 1;  // x_earth -> x_earth
+    H_jacobian(8, 12) = 1;  // y_earth -> y_earth
+    H_jacobian(9, 13) = 1;  // z_earth -> z_earth
+    H_jacobian(10, 14) = 1; // heading_earth -> heading_earth
     
     return H_jacobian;
 }
@@ -88,18 +93,37 @@ void EKalmanFilter::predict() {
 }
 
 void EKalmanFilter::update(const Eigen::VectorXd& z) {
+    // 打印输入的观测向量
+    std::cout << "Observation z: " << z.transpose() << std::endl;
+    std::cout << "Current state x: " << x.transpose() << std::endl;
+
     // 计算测量残差
     Eigen::VectorXd y = z - H * x;
+    std::cout << "Measurement residual y: " << y.transpose() << std::endl;
 
     // 计算雅可比矩阵 H
     H = calculate_jacobian_h(x);
+    std::cout << "H matrix:\n" << H << std::endl;
 
     // 卡尔曼增益计算
-    Eigen::MatrixXd S = H * P * H.transpose() + R;
-    Eigen::MatrixXd K = P * H.transpose() * S.inverse();
+    Eigen::MatrixXd PHt = P * H.transpose();
+    Eigen::MatrixXd S = H * PHt + R;
+    std::cout << "Innovation covariance S:\n" << S << std::endl;
+
+    // 检查 S 矩阵是否可逆
+    Eigen::FullPivLU<Eigen::MatrixXd> lu(S);
+    if (!lu.isInvertible()) {
+        std::cout << "Warning: S matrix is not invertible!" << std::endl;
+        return;  // 如果不可逆，直接返回
+    }
+
+    Eigen::MatrixXd K = PHt * S.inverse();
+    std::cout << "Kalman gain K:\n" << K << std::endl;
 
     // 更新状态向量和误差协方差矩阵
     x = x + K * y;
     P = (Eigen::MatrixXd::Identity(state_dim, state_dim) - K * H) * P;
+
+    std::cout << "Updated state x: " << x.transpose() << std::endl;
 }
 

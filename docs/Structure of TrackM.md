@@ -110,6 +110,7 @@
 
       - increment_age_unmatched_trackers : 增加未命中tracker的age
       - create_new_trackers : 创建新的跟踪器for unmatched detections
-      - get_tracks : 获取当前跟踪器列表
+      - get_tracks : 
+      - get_all_trackers : 返回所有跟踪器
       - update_trackers : 对命中的跟踪器更新kf状态
 

@@ -29,7 +29,7 @@ Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::stri
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
 
 KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : Filter(bbox3D, info, Track_ID), ekf(19, 14) {
+    : Filter(bbox3D, info, Track_ID), ekf(19, 11) {
     _init_kalman_filter();
 }
 
@@ -60,45 +60,39 @@ void KF::_init_kalman_filter() {
     ekf.H(9, 13) = 1;   // z_earth
     ekf.H(10, 14) = 1;  // heading_earth
 
-    // 3. 状态协方差矩阵 P 初始化
-    // 位置和尺寸的不确定性
-    ekf.P.topLeftCorner(7, 7) *= 10;  
-    // 车辆坐标系速度的不确定性
-    ekf.P.block<4, 4>(7, 7) *= 100;   
-    // 大地坐标系位置的不确定性
-    ekf.P.block<4, 4>(11, 11) *= 10;  
-    // 大地坐标系速度的不确定性
-    ekf.P.block<4, 4>(15, 15) *= 100; 
+    // 3. 状态协方差矩阵 P 初始化 - 调整初始不确定性
+    ekf.P = Eigen::MatrixXd::Identity(19, 19);
+    ekf.P.topLeftCorner(7, 7) *= 1.0;  // 降低位置和尺寸的不确定性
+    ekf.P.block<4, 4>(7, 7) *= 10.0;   // 速度的不确定性适中
+    ekf.P.block<4, 4>(11, 11) *= 1.0;  // 降低大地坐标系位置的不确定性
+    ekf.P.block<4, 4>(15, 15) *= 10.0; // 速度的不确定性适中
 
-    // 4. 过程噪声协方差矩阵 Q 初始化
-    // 车辆坐标系速度噪声
-    ekf.Q.block<4, 4>(7, 7) *= 1.0;   
-    ekf.Q(10, 10) = 0.1;  // heading_world 速度噪声较小
-    // 大地坐标系速度噪声
-    ekf.Q.block<4, 4>(15, 15) *= 1.0;  
-    ekf.Q(18, 18) = 0.1;  // heading_earth 速度噪声较小
+    // 4. 过程噪声协方差矩阵 Q 初始化 - 调小过程噪声
+    ekf.Q = Eigen::MatrixXd::Identity(19, 19) * 0.1;
+    ekf.Q.block<4, 4>(7, 7) *= 1.0;   // 速度过程噪声适中
+    ekf.Q(10, 10) = 0.1;              // heading_world 速度噪声较小
+    ekf.Q.block<4, 4>(15, 15) *= 1.0; // 大地坐标系速度噪声适中
+    ekf.Q(18, 18) = 0.1;              // heading_earth 速度噪声较小
 
-    // 5. 测量噪声协方差矩阵 R 初始化
-    // 车辆坐标系测量噪声
-    ekf.R.topLeftCorner(7, 7) *= 0.1;  
-    // 大地坐标系测量噪声
-    ekf.R.bottomRightCorner(4, 4) *= 0.1;
+    // 5. 测量噪声协方差矩阵 R 初始化 - 调整测量噪声
+    ekf.R = Eigen::MatrixXd::Identity(11, 11) * 0.1;  // 降低整体测量噪声
 
     // 6. 状态向量初始化
     ekf.x = Eigen::VectorXd::Zero(19);
+    
     // 车辆坐标系状态初始化
-    ekf.x.head<7>() = initial_pos;  // x,y,z,w,l,h,heading_world
+    ekf.x.head<7>() = initial_pos.head<7>();  // 前7维是车辆坐标系状态
+    
     // 车辆坐标系速度初始化为0
     ekf.x.segment<4>(7).setZero();  // vx,vy,vz,v_heading_world
-    // 大地坐标系位置初始化（需要从initial_pos转换或从外部输入）
-    // TODO: 添加坐标转换逻辑
-    ekf.x.segment<4>(11).setZero();  // x,y,z,heading_earth
+    
+    // 大地坐标系位置初始化
+    ekf.x.segment<4>(11) = initial_pos.tail<4>();  // 后4维是大地坐标系状态
+    
     // 大地坐标系速度初始化为0
     ekf.x.segment<4>(15).setZero();  // vx,vy,vz,v_heading_earth
 
-    // 7. 创建初始Box3D对象并保存到历史记录
-    Box3D initial_box(initial_pos, this->info["class_id"], this->info["score"], this->track_id);
-    track_history.push_back(initial_box);
+    std::cout << "Initial state: " << ekf.x.transpose() << std::endl;
 }
 
 void KF::predict() {
@@ -129,53 +123,75 @@ const std::vector<Box3D>& KF::get_history() const {
     return track_history;
 }
 
-const std::vector<Box3D>& KF::track_prediction(int steps) {
-    track_future.clear();  // 清空之前的预测记录
-    EKalmanFilter future_kf = ekf;
+std::vector<point_t> KF::track_world_prediction(int steps) const {
+    std::vector<point_t> predictions;
+    EKalmanFilter future_kf = ekf;  // 创建临时副本进行预测
 
     for (int i = 0; i < steps; ++i) {
         future_kf.predict();
-        track_future.push_back(future_kf.x);  // 假设 Box3D 构造函数接受状态向量
+        
+        point_t pred_point;
+        pred_point.x = future_kf.x(0);  // x_world
+        pred_point.y = future_kf.x(1);  // y_world
+        predictions.push_back(pred_point);
     }
 
-    return track_future;  // 返回 const 引用
+    return predictions;
 }
 
-// const std::array<std::pair<float, float>, 20>& KF::track_prediction(int steps) {
-//     // 限制步数，不能超过数组的容量
-//     int future_steps = std::min(steps, static_cast<int>(track_future.size()));
+std::vector<point_t> KF::track_earth_prediction(int steps) const {
+    std::vector<point_t> predictions;
+    EKalmanFilter future_kf = ekf;  // 创建临时副本进行预测
 
-//     // 创建一个临时的 EKF 作为未来预测的状态
-//     EKalmanFilter future_kf = kf;
+    for (int i = 0; i < steps; ++i) {
+        future_kf.predict();
+        
+        point_t pred_point;
+        pred_point.x = future_kf.x(11);  // x_earth
+        pred_point.y = future_kf.x(12);  // y_earth
+        predictions.push_back(pred_point);
+    }
 
-//     for (int i = 0; i < future_steps; ++i) {
-//         future_kf.predict(); // 执行一次预测
-//         track_future[i] = {future_kf.x(0), future_kf.x(1)}; // 只存储 x, y 坐标
-//     }
+    return predictions;
+}
 
-//     // // 填充多余的点为默认值，保持数组的一致性
-//     // for (int i = future_steps; i < track_future.size(); ++i) {
-//     //     track_future[i] = {0.0, 0.0};
-//     // }
+Eigen::VectorXd KF::get_world_state() const {
+    return ekf.x.head<7>();  // 返回车辆坐标系状态
+}
 
-//     return track_future;
-// }
-
+Eigen::VectorXd KF::get_earth_state() const {
+    Eigen::VectorXd earth_state(4);  // x, y, z, heading
+    earth_state << ekf.x.segment<3>(11), ekf.x(14);  // 返回大地坐标系状态
+    return earth_state;
+}
 
 void KF::update(const target_t& detection, float confidence) {
-    // 构建14维观测向量
-    Eigen::VectorXd z(14);
+    // 更新不需要卡尔曼滤波的属性
+    info["x_pixel"] = detection.x_pixel;
+    info["y_pixel"] = detection.y_pixel;
+    info["w_pixel"] = detection.w_pixel;
+    info["h_pixel"] = detection.h_pixel;
+    info["time_stamp"] = detection.time_stamp;
+    info["property"] = detection.property;
+    info["k"] = detection.k;
+    info["s"] = detection.s;
+    // 更新分类和置信度
+    info["class_id"] = detection.classid;
+    info["score"] = detection.conf;
+
+    // 构建观测向量
+    Eigen::VectorXd z(11);  // 修改为 11 维
     
-    // 车辆坐标系观测
+    // 车辆坐标系观测 (7维)
     z(0) = detection.x_world;
     z(1) = detection.y_world;
     z(2) = detection.z_world;
     z(3) = detection.w_world;
     z(4) = detection.l_world;
     z(5) = detection.h_world;
-    z(6) = detection.heading;
+    z(6) = detection.heading_world;
 
-    // 大地坐标系观测
+    // 大地坐标系观测 (4维)
     z(7) = detection.x_earth;
     z(8) = detection.y_earth;
     z(9) = detection.z_earth;
@@ -183,14 +199,13 @@ void KF::update(const target_t& detection, float confidence) {
 
     // 获取卡尔曼滤波器中的 yaw 值
     double previous_yaw = ekf.x(6);
-    double new_yaw = detection.heading;
+    double new_yaw = detection.heading_world;
 
     // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
     double yaw_diff = limit_angle(new_yaw - previous_yaw);
     bool large_yaw_change = std::abs(yaw_diff) > M_PI / 2;
 
     if (large_yaw_change) {
-        // 处理大的偏航角变化...（保持原有的偏航角处理逻辑）
         if (this->hits < 6) {
             if (confidence > this->prev_confidence) {
                 // 采用新yaw
@@ -209,6 +224,8 @@ void KF::update(const target_t& detection, float confidence) {
 
     // 更新卡尔曼滤波器状态
     ekf.update(z);
+    
+    std::cout << "After update, state: " << ekf.x.transpose() << std::endl;  // 添加调试信息
 
     // 确保更新后的航向角在 [-pi, pi] 范围内
     ekf.x(6) = limit_angle(ekf.x(6));
@@ -280,63 +297,4 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
     return std::make_tuple(matches, unmatched_detections, unmatched_trackers);
 }
 
-void print_results(const std::vector<std::array<int, 2>>& matches,
-                   const std::vector<int>& unmatched_detections,
-                   const std::vector<int>& unmatched_trackers) {
-    std::cout << "Matches:" << std::endl;
-    for (const auto& match : matches) {
-        std::cout << "Detection " << match[0] << " matched with Tracker " << match[1] << std::endl;
-    }
 
-    std::cout << "Unmatched Detections:" << std::endl;
-    for (int idx : unmatched_detections) {
-        std::cout << "Detection " << idx << std::endl;
-    }
-
-    std::cout << "Unmatched Trackers:" << std::endl;
-    for (int idx : unmatched_trackers) {
-        std::cout << "Tracker " << idx << std::endl;
-    }
-}
-
-std::vector<point_t> KF::track_world_prediction(int steps) {
-    std::vector<point_t> predictions;
-    EKalmanFilter future_kf = ekf;
-
-    for (int i = 0; i < steps; ++i) {
-        future_kf.predict();
-        
-        point_t pred_point;
-        pred_point.x = future_kf.x(0);  // x_world
-        pred_point.y = future_kf.x(1);  // y_world
-        predictions.push_back(pred_point);
-    }
-
-    return predictions;
-}
-
-std::vector<point_t> KF::track_earth_prediction(int steps) {
-    std::vector<point_t> predictions;
-    EKalmanFilter future_kf = ekf;
-
-    for (int i = 0; i < steps; ++i) {
-        future_kf.predict();
-        
-        point_t pred_point;
-        pred_point.x = future_kf.x(11);  // x_earth
-        pred_point.y = future_kf.x(12);  // y_earth
-        predictions.push_back(pred_point);
-    }
-
-    return predictions;
-}
-
-Eigen::VectorXd KF::get_world_state() const {
-    return ekf.x.head<7>();  // 返回车辆坐标系状态
-}
-
-Eigen::VectorXd KF::get_earth_state() const {
-    Eigen::VectorXd earth_state(4);  // x, y, z, heading
-    earth_state << ekf.x.segment<3>(11), ekf.x(14);  // 返回大地坐标系状态
-    return earth_state;
-}

@@ -16,6 +16,30 @@ bool compareFileNames(const std::string& a, const std::string& b) {
     return std::stoi(a) < std::stoi(b);
 }
 
+// 将 Box3D 类型的检测转换为 target_t 类型
+std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
+    std::vector<target_t> target_detections;
+    for (const auto& detection : detections) {
+        target_t target;
+        // 填充车辆坐标系信息
+        target.x_world = detection.x;
+        target.y_world = detection.y;
+        target.z_world = detection.z;
+        target.w_world = detection.w;
+        target.l_world = detection.l;
+        target.h_world = detection.h;
+        target.heading_world = detection.yaw;
+        
+        // 设置分类和置信度
+        target.classid = detection.class_id;
+        target.conf = detection.score;
+        
+        // 其他属性可以根据需要设置
+        target_detections.push_back(target);
+    }
+    return target_detections;
+}
+
 int main() {
     std::string folderPath = "../data/detections/20241202_test56/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
@@ -74,50 +98,51 @@ int main() {
                 //     std::cout << "box3d: " << box3d.x << " " << box3d.y << " " << box3d.z << " " << box3d.w << " " << box3d.l << " " << box3d.h << " " << box3d.yaw << " " << box3d.score << std::endl;
                 // }
             }
-        track_manager.update(new_detections);
-        std::cout << std::endl;
-        file.close(); // 关闭文件
+            std::vector<target_t> target_detections = convert_to_target(new_detections);
+            track_manager.update(target_detections);
+            std::cout << std::endl; 
+            file.close(); // 关闭文件
 
-        std::vector<Box3D> tracks;
-        tracks = track_manager.get_reliable_tracks();
-    
-        std::ofstream savefile("../data/cpp_result/" + filePath);
-        std::ofstream savefile_future("../data/cpp_result_future/" + filePath);
+            std::vector<target_t> tracks = track_manager.get_reliable_tracks();
+        
+            std::ofstream savefile("../data/cpp_result/" + filePath);
+            std::ofstream savefile_future("../data/cpp_result_future/" + filePath);
 
-        // 保存txt结果
-        // track type: Box3D 
-        for (const auto& track : tracks) {
-            std::cout << " | Position: (" << track.x << ", " << track.y << ", " << track.z << ") \n" <<" | Dim: ("<< \
-            track.w<< ", "<<track.l<<", "<<track.h<<")" <<" yaw: ("<<track.yaw<<") Class_id: ("<<track.class_id <<") class_score: ("<<track.score<<") Track_id: (" << track.track_id << ") v_yaw: "<< track.v_yaw <<std::endl;
-            savefile<<track.x<<" "<<track.y<<" "<<track.z<<" "<<track.w<<" "<<track.l<<" "<<track.h<<" "<<track.yaw<<" "<<track.score<<" "<<track.class_id<<" "<<track.track_id<<std::endl;
-        }
-        savefile.close();
-
-        // 保存预测轨迹
-        if (savefile_future.is_open()) {
-            std::vector<KF>& trackers = track_manager.get_all_trackers();
-            // 先保存当前位置结果
-            
+            // 保存txt结果
+            // track type: Box3D 
             for (const auto& track : tracks) {
-                // std::cout << " | Position: (" << track.x << ", " << track.y << ", " << track.z << ") \n" <<" | Dim: ("<< \
-                track.w<< ", "<<track.l<<", "<<track.h<<")" <<" yaw: ("<<track.yaw<<") Class_id: ("<<track.class_id <<") class_score: ("<<track.score<<") Track_id: (" << track.track_id << ") v_yaw: "<< track.v_yaw <<std::endl;
-                savefile_future<<track.x<<" "<<track.y<<" "<<track.z<<" "<<track.w<<" "<<track.l<<" "<<track.h<<" "<<track.yaw<<" "<<track.score<<" "<<track.class_id<<" "<<track.track_id<<std::endl;
-            }         
-
-            // 再保存预测结果
-            for (auto& tracker : trackers) {
-                const std::vector<Box3D>& future_predictions = tracker.track_prediction(20);
-                for (const auto& box : future_predictions) {
-                        savefile_future << box.x << " " << box.y << " " << box.z <<" "
-                                << box.w << " " << box.l << " " << box.h << " "
-                                << box.yaw << " "
-                                << box.score << " "
-                                << box.class_id <<" "
-                                << box.track_id << std::endl;
-                }                
+                savefile << track.x_world << " " << track.y_world << " " << track.z_world << " "
+                        << track.w_world << " " << track.l_world << " " << track.h_world << " "
+                        << track.heading_world << " " << track.conf << " "
+                        << track.classid << " " << track.track_id << std::endl;
             }
-            savefile_future.close();
-        }
+            savefile.close();
+
+            // 保存预测轨迹
+            if (savefile_future.is_open()) {
+                std::vector<KF>& trackers = track_manager.get_all_trackers();
+                // 先保存当前位置结果
+                
+                for (const auto& track : tracks) {
+                    savefile_future << track.x_world << " " << track.y_world << " " << track.z_world << " "
+                                << track.w_world << " " << track.l_world << " " << track.h_world << " "
+                                << track.heading_world << " " << track.conf << " "
+                                << track.classid << " " << track.track_id << std::endl;
+                }
+
+                // 再保存预测结果
+                for (auto& tracker : trackers) {
+                    std::cout << "tracker: " << tracker.track_id << std::endl;
+                    std::vector<point_t> future_predictions = tracker.track_world_prediction(20);
+                    for (const auto& point : future_predictions) {
+                        savefile_future << point.x << " " << point.y << " " << 0.0 << " "
+                                    << 0.0 << " " << 0.0 << " " << 0.0 << " "
+                                    << 0.0 << " " << 0.0 << " "
+                                    << 0 << " " << tracker.track_id << std::endl;
+                    }
+                }
+                savefile_future.close();
+            }
 
         } else {
             std::cerr << "Failed to open file: " << filePath << std::endl;
@@ -128,8 +153,8 @@ int main() {
     }
 
 
-    std::vector<Box3D> reliable_tracks = track_manager.get_reliable_tracks();
-    std::vector<KF>& trackers = track_manager.get_all_trackers();
+    // std::vector<target_t> reliable_tracks = track_manager.get_reliable_tracks();
+    // std::vector<KF>& trackers = track_manager.get_all_trackers();
 
     // 文件处理结束后，统一打印所有的tracker
     // for (const auto& tracker : trackers) {

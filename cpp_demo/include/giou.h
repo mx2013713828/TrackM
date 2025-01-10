@@ -133,6 +133,12 @@ struct Box3D {
     Box3D(Box3D&& other) = default;
     Box3D& operator=(const Box3D& other) = default;
     Box3D& operator=(Box3D&& other) = default;
+
+    // 添加新的构造函数
+    Box3D(float x_, float y_, float z_, float w_, float l_, float h_, float yaw_,
+          int class_id_ = -1, float score_ = 0, int track_id_ = -1, float v_yaw_ = 0)
+        : x(x_), y(y_), z(z_), w(w_), l(l_), h(h_), yaw(yaw_),
+          class_id(class_id_), score(score_), track_id(track_id_), v_yaw(v_yaw_) {}
 };
 
 std::vector<std::array<float, 3>> box2corners(const Box3D& bbox);

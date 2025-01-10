@@ -31,73 +31,147 @@ void TrackManager::update(const std::vector<target_t>& detections) {
         tracker.predict();
     }
 
-    // 获取跟踪器状态（使用车辆坐标系状态进行关联）
-    std::vector<Box3D> tracker_states;
-    for (const auto& tracker : trackers) {
-        tracker_states.push_back(Box3D(tracker.get_world_state()));
+    // 将 target_t 转换为 Box3D 用于关联
+    std::vector<Box3D> detection_boxes;
+    for (const auto& det : detections) {
+        Box3D box(det.x_world, det.y_world, det.z_world,
+                 det.w_world, det.l_world, det.h_world,
+                 det.heading_world,
+                 det.classid, det.conf);
+        detection_boxes.push_back(box);
     }
 
-    // 关联检测和跟踪器
-    auto [matches, unmatched_detections, unmatched_trackers] = 
-        associate_detections_to_trackers(detections, tracker_states);
+    // 如果没有现有的跟踪器，初始化它们
+    if (trackers.empty()) {
+        std::vector<int> unmatched_detections(detections.size());
+        std::iota(unmatched_detections.begin(), unmatched_detections.end(), 0);
+        create_new_trackers(detections, unmatched_detections);
+    } else {
+        // 获取跟踪器状态
+        std::vector<Box3D> tracker_states;
+        for (const auto& tracker : trackers) {
+            tracker_states.push_back(Box3D(tracker.get_world_state()));
+        }
 
-    // 更新跟踪器
-    update_trackers(detections, matches);
+        // 关联检测和跟踪器
+        auto [matches, unmatched_detections, unmatched_trackers] = 
+            associate_detections_to_trackers(detection_boxes, tracker_states, -0.25);
+
+        // 更新跟踪器
+        update_trackers(detections, matches);
+
+        // 对未命中的检测框创建新的跟踪器
+        create_new_trackers(detections, unmatched_detections);
+
+        // 增加未命中跟踪器的age
+        increment_age_unmatched_trackers(unmatched_trackers);
+    }
+
+    // 移除长时间未命中的跟踪器
+    trackers.erase(std::remove_if(trackers.begin(), trackers.end(),
+                                 [this](const KF& tracker) { 
+                                     return tracker.time_since_update >= max_age; 
+                                 }),
+                  trackers.end());
 }
 
-std::vector<target_t> TrackManager::get_tracks() const {
-    std::vector<target_t> tracks;
+std::vector<target_t> TrackManager::get_reliable_tracks() const {
+    std::vector<target_t> reliable_tracks;
     for (const auto& tracker : trackers) {
         if (tracker.hits >= min_hits && tracker.time_since_update < max_age) {
             target_t target;
             
-            // 获取车辆坐标系状态和预测
+            // 1. 更新车辆坐标系状态
             Eigen::VectorXd world_state = tracker.get_world_state();
-            target.points_world_predict = tracker.track_world_prediction(20);
+            std::cout << "World state: " << world_state.transpose() << std::endl;
             
-            // 获取大地坐标系状态和预测
+            target.x_world = world_state(0);
+            target.y_world = world_state(1);
+            target.z_world = world_state(2);
+            target.w_world = world_state(3);
+            target.l_world = world_state(4);
+            target.h_world = world_state(5);
+            target.heading_world = world_state(6);
+            
+            // 2. 更新大地坐标系状态
             Eigen::VectorXd earth_state = tracker.get_earth_state();
-            target.points_earth_predict = tracker.track_earth_prediction(20);
+            target.x_earth = earth_state(0);
+            target.y_earth = earth_state(1);
+            target.z_earth = earth_state(2);
+            target.heading_earth = earth_state(3);
             
-            // 设置其他属性...
-            tracks.push_back(target);
+            // 3. 更新速度信息
+            Eigen::VectorXd velocity = tracker.get_velocity();
+            target.vx = velocity(0);
+            target.vy = velocity(1);
+            target.speed = std::sqrt(velocity(0) * velocity(0) + velocity(1) * velocity(1));
+            
+            // 4. 更新预测轨迹
+            target.points_world_predict = tracker.track_world_prediction(20);
+            target.points_earth = tracker.track_earth_prediction(20);
+            
+            // 5. 更新跟踪相关属性
+            target.track_id = tracker.track_id;
+            target.frames = tracker.hits;
+            
+            // 6. 设置不需要卡尔曼滤波更新的属性
+            target.x_pixel = tracker.info.at("x_pixel");
+            target.y_pixel = tracker.info.at("y_pixel");
+            target.w_pixel = tracker.info.at("w_pixel");
+            target.h_pixel = tracker.info.at("h_pixel");
+            target.time_stamp = tracker.info.at("time_stamp");
+            target.property = tracker.info.at("property");
+            target.k = tracker.info.at("k");
+            target.s = tracker.info.at("s");
+            target.classid = static_cast<int>(tracker.info.at("class_id"));
+            target.conf = tracker.info.at("score");
+            
+            reliable_tracks.push_back(target);
         }
     }
-    return tracks;
+    return reliable_tracks;
 }
  
 
-// 初始化时，将第一帧的检测加入历史轨迹中
-void TrackManager::create_new_trackers(const std::vector<Box3D>& detections, const std::vector<int>& unmatched_detections) {
+// 初始化
+void TrackManager::create_new_trackers(const std::vector<target_t>& detections, 
+                                     const std::vector<int>& unmatched_detections) {
     for (int idx : unmatched_detections) {
-        const Box3D& det = detections[idx];
-        Eigen::VectorXd bbox3D(7);
-        bbox3D << det.x, det.y, det.z, det.w, det.l, det.h, det.yaw;
-        std::unordered_map<std::string, float> info = {{"score", det.score}, {"class_id", static_cast<float>(det.class_id)}};
-        trackers.emplace_back(bbox3D, info, next_id++);
+        const target_t& det = detections[idx];
+        // 修改为11维向量，包含车辆坐标系和大地坐标系的位置信息
+        Eigen::VectorXd bbox3D(11);
+        bbox3D << det.x_world, det.y_world, det.z_world,  // 车辆坐标系位置
+                  det.w_world, det.l_world, det.h_world, 
+                  det.heading_world,                       // 车辆坐标系航向
+                  det.x_earth, det.y_earth, det.z_earth,  // 大地坐标系位置
+                  det.heading_earth;                       // 大地坐标系航向
+        
+        std::unordered_map<std::string, float> info = {
+            {"score", det.conf}, 
+            {"class_id", static_cast<float>(det.classid)},
+            {"x_pixel", static_cast<float>(det.x_pixel)},
+            {"y_pixel", static_cast<float>(det.y_pixel)},
+            {"w_pixel", static_cast<float>(det.w_pixel)},
+            {"h_pixel", static_cast<float>(det.h_pixel)},
+            {"time_stamp", static_cast<float>(det.time_stamp)},
+            {"property", static_cast<float>(det.property)},
+            {"k", det.k},
+            {"s", det.s}
+        };
+        
+        trackers.emplace_back(bbox3D, info, next_id++);  // 恢复原来的构造函数
     }
 }
 
-// 添加track_history 保存历史轨迹
-void TrackManager::update_trackers(const std::vector<Box3D>& detections, const std::vector<std::array<int, 2>>& matches) {
+void TrackManager::update_trackers(const std::vector<target_t>& detections, 
+                                 const std::vector<std::array<int, 2>>& matches) {
     for (const auto& match : matches) {
         int detection_idx = match[0];
         int tracker_idx = match[1];
-        const Box3D& det = detections[detection_idx];
-        Eigen::VectorXd bbox3D(7);
-        bbox3D << det.x, det.y, det.z, det.w, det.l, det.h, det.yaw;
-        trackers[tracker_idx].update(bbox3D, det.score);
+        const target_t& det = detections[detection_idx];
+        trackers[tracker_idx].update(det, det.conf);
         trackers[tracker_idx].hits++;
         trackers[tracker_idx].time_since_update = 0;
-        trackers[tracker_idx].info["score"] = det.score;
-        trackers[tracker_idx].info["class_id"] = static_cast<float>(det.class_id);
-        // 将当前检测结果转化为 Box3D，并保存到 track_history 中
-        // Eigen::VectorXd track_box3d(7);
-        // track_box3d = trackers[tracker_idx].get_state();
-        Box3D updated_box(trackers[tracker_idx].get_state(), det.class_id, det.score, trackers[tracker_idx].track_id, trackers[tracker_idx].get_yaw_speed());
-
-        // Box3D updated_box(bbox3D, det.class_id, det.score, trackers[tracker_idx].track_id);
-        // trackers[tracker_idx].track_history.push_back(updated_box);
     }
 }
 
