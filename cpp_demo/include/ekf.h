@@ -6,22 +6,22 @@
 class EKalmanFilter {
 public:
     EKalmanFilter(int state_dim, int measure_dim);
-
+    
+    // 状态向量定义 (扩展为包含两个坐标系的状态)
+    // [0-6]:   x_world, y_world, z_world, w, l, h, heading
+    // [7-9]:   vx_world, vy_world, vz_world
+    // [10]:    v_heading_world
+    // [11-13]: x_earth, y_earth, z_earth
+    // [14]:    heading_earth
+    // [15-17]: vx_earth, vy_earth, vz_earth
+    // [18]:    v_heading_earth
+    
     void predict();
     void update(const Eigen::VectorXd& z);
-    Eigen::VectorXd f(const Eigen::VectorXd& x); // 非线性状态转移函数
-    Eigen::MatrixXd calculate_jacobian_f(const Eigen::VectorXd& x); // 状态转移函数的雅可比矩阵
-    Eigen::MatrixXd calculate_jacobian_h(const Eigen::VectorXd& x); // 测量函数的雅可比矩阵
-
-    Eigen::VectorXd x; // 状态向量
-    Eigen::MatrixXd F; // 状态转移矩阵 (用作预测的线性化雅可比矩阵)
-    Eigen::MatrixXd H; // 测量矩阵 (用作测量的线性化雅可比矩阵)
-    Eigen::MatrixXd P; // 误差协方差矩阵
-    Eigen::MatrixXd R; // 测量噪声协方差矩阵
-    Eigen::MatrixXd Q; // 过程噪声协方差矩阵
-
+    
 private:
-    int state_dim;
-    int measure_dim;
+    Eigen::VectorXd f(const Eigen::VectorXd& x);
+    Eigen::MatrixXd calculate_jacobian_f(const Eigen::VectorXd& x);
+    Eigen::MatrixXd calculate_jacobian_h(const Eigen::VectorXd& x);
 };
 #endif // EKALMAN_FILTER_H

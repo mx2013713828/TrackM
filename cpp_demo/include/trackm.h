@@ -32,27 +32,21 @@ public:
 
 class KF : public Filter {
 public:
-    // KalmanFilter kf;
-    EKalmanFilter ekf;
-    std::vector<Box3D> track_history;  // 用于记录每次的 bbox
-    std::vector<Box3D> track_future;
-    // std::array<std::pair<float, float>, 20> track_future; // 保存最多 20 个预测点的 (x, y) 坐标
-
-    float prev_confidence = 0;  // 类内变量，存储前一帧的置信度
-
     KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID);
-    void _init_kalman_filter();
-    void predict();
-    // void update(const Eigen::VectorXd& bbox3D);
-    void update(const Eigen::VectorXd& bbox3D, float confidence);  // 新增 confidence 作为输入
+    
+    void predict() override;
+    void update(const Eigen::VectorXd& bbox3D, float confidence) override;
+    
+    // 获取两个坐标系下的状态
+    Eigen::VectorXd get_world_state() const;
+    Eigen::VectorXd get_earth_state() const;
+    
+    // 获取两个坐标系下的预测轨迹
+    std::vector<point_t> track_world_prediction(int steps);
+    std::vector<point_t> track_earth_prediction(int steps);
 
-    Eigen::VectorXd get_state() const; // 这里声明为 const
-    Eigen::VectorXd get_velocity() const;
-    const std::vector<Box3D>& get_history() const;  // 新增历史记录方法
-    const std::vector<Box3D>& track_prediction(int steps) ;
-    // const std::array<std::pair<float, float>, 20>& track_prediction(int steps);
-    float get_yaw_speed() const;
-
+private:
+    EKalmanFilter ekf;
 };
 
 

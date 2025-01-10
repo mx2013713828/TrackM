@@ -25,55 +25,45 @@ TrackManager::TrackManager(int max_age, int min_hits)
 
     }
 
-void TrackManager::update(const std::vector<Box3D>& detections) {
-    // std::cout<<"迭代update函数"<<std::endl;
-    // 预测所有跟踪器的当前状态
+void TrackManager::update(const std::vector<target_t>& detections) {
+    // 预测所有跟踪器的状态
     for (auto& tracker : trackers) {
         tracker.predict();
     }
 
-    // 如果没有现有的跟踪器，初始化它们
-    if (trackers.empty()) {
-        std::cout<< "初始化跟踪器" <<std::endl;
-        std::vector<int> unmatched_detections(detections.size());
-        std::iota(unmatched_detections.begin(), unmatched_detections.end(), 0); // 创建一个从0开始的索引数组
-        create_new_trackers(detections, unmatched_detections);
-    } else {
-        // 获取所有跟踪器的当前状态
-        std::vector<Box3D> tracker_states;
-        for (const auto& tracker : trackers) {
-            Eigen::VectorXd state = tracker.get_state();
-            tracker_states.emplace_back(state);
-        }
-
-        // 将检测结果与跟踪器关联
-        auto [matches, unmatched_detections, unmatched_trackers] = associate_detections_to_trackers(detections, tracker_states, 0.1);
-
-        // 更新命中的跟踪器
-        update_trackers(detections, matches);
-
-        // 对未命中的检测框创建新的跟踪器
-        create_new_trackers(detections, unmatched_detections);
-
-        // 增加未命中跟踪器的age ## 
-        increment_age_unmatched_trackers(unmatched_trackers);
+    // 获取跟踪器状态（使用车辆坐标系状态进行关联）
+    std::vector<Box3D> tracker_states;
+    for (const auto& tracker : trackers) {
+        tracker_states.push_back(Box3D(tracker.get_world_state()));
     }
 
-    // 移除长时间未命中的跟踪器
-    trackers.erase(std::remove_if(trackers.begin(), trackers.end(),
-                                  [this](const KF& tracker) { return tracker.time_since_update >= max_age; }),
-                   trackers.end());
+    // 关联检测和跟踪器
+    auto [matches, unmatched_detections, unmatched_trackers] = 
+        associate_detections_to_trackers(detections, tracker_states);
+
+    // 更新跟踪器
+    update_trackers(detections, matches);
 }
 
-std::vector<Box3D> TrackManager::get_reliable_tracks() {
-    std::vector<Box3D> reliable_tracks;
+std::vector<target_t> TrackManager::get_tracks() const {
+    std::vector<target_t> tracks;
     for (const auto& tracker : trackers) {
-        // std::cout<<"time_since_update: " <<tracker.time_since_update <<std::endl;
-        if (tracker.hits >= min_hits) {
-            reliable_tracks.emplace_back(tracker.get_state(), tracker.info.at("class_id"), tracker.info.at("score"), tracker.track_id, tracker.get_yaw_speed());
+        if (tracker.hits >= min_hits && tracker.time_since_update < max_age) {
+            target_t target;
+            
+            // 获取车辆坐标系状态和预测
+            Eigen::VectorXd world_state = tracker.get_world_state();
+            target.points_world_predict = tracker.track_world_prediction(20);
+            
+            // 获取大地坐标系状态和预测
+            Eigen::VectorXd earth_state = tracker.get_earth_state();
+            target.points_earth_predict = tracker.track_earth_prediction(20);
+            
+            // 设置其他属性...
+            tracks.push_back(target);
         }
     }
-    return reliable_tracks;
+    return tracks;
 }
  
 

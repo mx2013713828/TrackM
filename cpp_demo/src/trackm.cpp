@@ -1,4 +1,3 @@
-
 /*
  * File:        trackm.cpp
  * Author:      Yufeng Ma
@@ -30,36 +29,75 @@ Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::stri
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
 
 KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : Filter(bbox3D, info, Track_ID), ekf(11, 7) {
+    : Filter(bbox3D, info, Track_ID), ekf(19, 14) {
     _init_kalman_filter();
 }
 
 void KF::_init_kalman_filter() {
-    // kf.F(0, 7) = kf.F(1, 8) = kf.F(2, 9) = 1;
     double dt = 0.1;
 
-    ekf.F(0, 7) = dt; 
-    ekf.F(1, 8) = dt; 
-    ekf.F(2, 9) = dt; 
-    ekf.F(6, 10) = dt; // yaw 更新 (yaw = yaw + yaw_rate * dt)
+    // 1. 状态转移矩阵 F 初始化
+    // 车辆坐标系部分
+    ekf.F(0, 7) = dt;   // x_world 对 vx_world 的影响
+    ekf.F(1, 8) = dt;   // y_world 对 vy_world 的影响
+    ekf.F(2, 9) = dt;   // z_world 对 vz_world 的影响
+    ekf.F(6, 10) = dt;  // heading_world 对 v_heading_world 的影响
 
+    // 大地坐标系部分
+    ekf.F(11, 15) = dt;  // x_earth 对 vx_earth 的影响
+    ekf.F(12, 16) = dt;  // y_earth 对 vy_earth 的影响
+    ekf.F(13, 17) = dt;  // z_earth 对 vz_earth 的影响
+    ekf.F(14, 18) = dt;  // heading_earth 对 v_heading_earth 的影响
+
+    // 2. 测量矩阵 H 初始化 (14x19)
+    // 车辆坐标系观测 (7维)
     for (int i = 0; i < 7; ++i) {
-        ekf.H(i, i) = 1;
+        ekf.H(i, i) = 1;  // x,y,z,w,l,h,heading_world
     }
+    // 大地坐标系观测 (4维)
+    ekf.H(7, 11) = 1;   // x_earth
+    ekf.H(8, 12) = 1;   // y_earth
+    ekf.H(9, 13) = 1;   // z_earth
+    ekf.H(10, 14) = 1;  // heading_earth
 
-    ekf.P.bottomRightCorner(4, 4) *= 100; // 加大速度相关的不确定性
-    // kf.P *= 10;
+    // 3. 状态协方差矩阵 P 初始化
+    // 位置和尺寸的不确定性
+    ekf.P.topLeftCorner(7, 7) *= 10;  
+    // 车辆坐标系速度的不确定性
+    ekf.P.block<4, 4>(7, 7) *= 100;   
+    // 大地坐标系位置的不确定性
+    ekf.P.block<4, 4>(11, 11) *= 10;  
+    // 大地坐标系速度的不确定性
+    ekf.P.block<4, 4>(15, 15) *= 100; 
 
-    // 过程噪声协方差矩阵 Q
-    ekf.Q.bottomRightCorner(4, 4) *= 1; // 增大速度过程噪声，提高系统对变化的敏感性
-    ekf.Q(10, 10) = 0.1;
-    // 测量噪声协方差矩阵 R
-    ekf.R *= 0.1; // 减小测量噪声，增强对传感器数据的信任
+    // 4. 过程噪声协方差矩阵 Q 初始化
+    // 车辆坐标系速度噪声
+    ekf.Q.block<4, 4>(7, 7) *= 1.0;   
+    ekf.Q(10, 10) = 0.1;  // heading_world 速度噪声较小
+    // 大地坐标系速度噪声
+    ekf.Q.block<4, 4>(15, 15) *= 1.0;  
+    ekf.Q(18, 18) = 0.1;  // heading_earth 速度噪声较小
 
-    ekf.x.head<7>() = initial_pos;
+    // 5. 测量噪声协方差矩阵 R 初始化
+    // 车辆坐标系测量噪声
+    ekf.R.topLeftCorner(7, 7) *= 0.1;  
+    // 大地坐标系测量噪声
+    ekf.R.bottomRightCorner(4, 4) *= 0.1;
 
-    Box3D initial_box(initial_pos, this->info["class_id"],this->info["score"],this->track_id);
+    // 6. 状态向量初始化
+    ekf.x = Eigen::VectorXd::Zero(19);
+    // 车辆坐标系状态初始化
+    ekf.x.head<7>() = initial_pos;  // x,y,z,w,l,h,heading_world
+    // 车辆坐标系速度初始化为0
+    ekf.x.segment<4>(7).setZero();  // vx,vy,vz,v_heading_world
+    // 大地坐标系位置初始化（需要从initial_pos转换或从外部输入）
+    // TODO: 添加坐标转换逻辑
+    ekf.x.segment<4>(11).setZero();  // x,y,z,heading_earth
+    // 大地坐标系速度初始化为0
+    ekf.x.segment<4>(15).setZero();  // vx,vy,vz,v_heading_earth
 
+    // 7. 创建初始Box3D对象并保存到历史记录
+    Box3D initial_box(initial_pos, this->info["class_id"], this->info["score"], this->track_id);
     track_history.push_back(initial_box);
 }
 
@@ -124,49 +162,57 @@ const std::vector<Box3D>& KF::track_prediction(int steps) {
 // }
 
 
-void KF::update(const Eigen::VectorXd& bbox3D, float confidence) {
+void KF::update(const target_t& detection, float confidence) {
+    // 构建14维观测向量
+    Eigen::VectorXd z(14);
+    
+    // 车辆坐标系观测
+    z(0) = detection.x_world;
+    z(1) = detection.y_world;
+    z(2) = detection.z_world;
+    z(3) = detection.w_world;
+    z(4) = detection.l_world;
+    z(5) = detection.h_world;
+    z(6) = detection.heading;
+
+    // 大地坐标系观测
+    z(7) = detection.x_earth;
+    z(8) = detection.y_earth;
+    z(9) = detection.z_earth;
+    z(10) = detection.heading_earth;
+
     // 获取卡尔曼滤波器中的 yaw 值
     double previous_yaw = ekf.x(6);
-    double new_yaw = bbox3D(6);
+    double new_yaw = detection.heading;
 
     // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
     double yaw_diff = limit_angle(new_yaw - previous_yaw);
     bool large_yaw_change = std::abs(yaw_diff) > M_PI / 2;
 
     if (large_yaw_change) {
-        // 判断 hits 是否较少（例如，hits 小于 3 时认为刚开始）
+        // 处理大的偏航角变化...（保持原有的偏航角处理逻辑）
         if (this->hits < 6) {
-            // 根据置信度高低决定采用哪个 yaw
             if (confidence > this->prev_confidence) {
-                std::cout << "Adopting new yaw (" << new_yaw << ") due to higher confidence (" 
-                          << confidence << " > " << this->prev_confidence << ")" << std::endl;
                 // 采用新yaw
             } else if (confidence < this->prev_confidence) {
-                std::cout << "Keeping previous yaw (" << previous_yaw << ") due to higher previous confidence (" 
-                          << this->prev_confidence << " > " << confidence << ")" << std::endl;
-                new_yaw = previous_yaw;  // 保持原来的yaw
+                z(6) = previous_yaw;  // 保持原来的yaw
+                z(10) = detection.heading_earth;  // 相应更新大地坐标系的航向角
             } else {
-                std::cout << "Similar confidence levels, smoothing yaw transition between " 
-                          << previous_yaw << " and " << new_yaw << std::endl;
-                new_yaw = (previous_yaw + new_yaw) / 2;  // 平滑过渡
+                z(6) = (previous_yaw + new_yaw) / 2;  // 平滑过渡
+                z(10) = (ekf.x(14) + detection.heading_earth) / 2;  // 平滑大地坐标系航向角
             }
         } else {
-            // 当 hits 较多时，忽略大的 yaw 变化，保持之前的状态
-            std::cout << "Large yaw change detected: " << previous_yaw << " -> " << new_yaw 
-                      << ", ignoring update due to stability." << std::endl;
-            new_yaw = previous_yaw;  // 忽略更新
+            z(6) = previous_yaw;  // 忽略更新
+            z(10) = ekf.x(14);    // 保持原来的大地坐标系航向角
         }
     }
 
-    // 使用平滑后的 yaw 值更新 bbox3D 的 yaw
-    Eigen::VectorXd smoothed_bbox = bbox3D;
-    smoothed_bbox(6) = previous_yaw + limit_angle(new_yaw - previous_yaw);
-
     // 更新卡尔曼滤波器状态
-    ekf.update(smoothed_bbox);
+    ekf.update(z);
 
-    // 确保更新后的 yaw 值在 [-pi, pi] 范围内
+    // 确保更新后的航向角在 [-pi, pi] 范围内
     ekf.x(6) = limit_angle(ekf.x(6));
+    ekf.x(14) = limit_angle(ekf.x(14));
 
     // 更新 prev_confidence 为当前帧的置信度
     this->prev_confidence = confidence;
@@ -251,4 +297,46 @@ void print_results(const std::vector<std::array<int, 2>>& matches,
     for (int idx : unmatched_trackers) {
         std::cout << "Tracker " << idx << std::endl;
     }
+}
+
+std::vector<point_t> KF::track_world_prediction(int steps) {
+    std::vector<point_t> predictions;
+    EKalmanFilter future_kf = ekf;
+
+    for (int i = 0; i < steps; ++i) {
+        future_kf.predict();
+        
+        point_t pred_point;
+        pred_point.x = future_kf.x(0);  // x_world
+        pred_point.y = future_kf.x(1);  // y_world
+        predictions.push_back(pred_point);
+    }
+
+    return predictions;
+}
+
+std::vector<point_t> KF::track_earth_prediction(int steps) {
+    std::vector<point_t> predictions;
+    EKalmanFilter future_kf = ekf;
+
+    for (int i = 0; i < steps; ++i) {
+        future_kf.predict();
+        
+        point_t pred_point;
+        pred_point.x = future_kf.x(11);  // x_earth
+        pred_point.y = future_kf.x(12);  // y_earth
+        predictions.push_back(pred_point);
+    }
+
+    return predictions;
+}
+
+Eigen::VectorXd KF::get_world_state() const {
+    return ekf.x.head<7>();  // 返回车辆坐标系状态
+}
+
+Eigen::VectorXd KF::get_earth_state() const {
+    Eigen::VectorXd earth_state(4);  // x, y, z, heading
+    earth_state << ekf.x.segment<3>(11), ekf.x(14);  // 返回大地坐标系状态
+    return earth_state;
 }
