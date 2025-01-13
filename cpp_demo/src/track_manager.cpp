@@ -104,11 +104,15 @@ std::vector<target_t> TrackManager::get_reliable_tracks() const {
             Eigen::VectorXd velocity = tracker.get_velocity();
             target.vx = velocity(0);
             target.vy = velocity(1);
-            target.speed = std::sqrt(velocity(0) * velocity(0) + velocity(1) * velocity(1));
+
+            // 使用大地坐标系下的速度计算 speed
+            double vx_earth = tracker.get_state()(15);  // 大地坐标系下的 vx
+            double vy_earth = tracker.get_state()(16);  // 大地坐标系下的 vy
+            target.speed = std::sqrt(vx_earth * vx_earth + vy_earth * vy_earth);  // 使用大地坐标系速度
             
             // 4. 更新预测轨迹
             target.points_world_predict = tracker.track_world_prediction(20);
-            target.points_earth = tracker.track_earth_prediction(20);
+            target.points_earth_predict = tracker.track_earth_prediction(20);
             
             // 5. 更新跟踪相关属性
             target.track_id = tracker.track_id;
@@ -125,6 +129,25 @@ std::vector<target_t> TrackManager::get_reliable_tracks() const {
             target.s = tracker.info.at("s");
             target.classid = static_cast<int>(tracker.info.at("class_id"));
             target.conf = tracker.info.at("score");
+            
+            // 添加原始点集
+            target.points_world = tracker.get_points_world();
+            target.points_earth = tracker.get_points_earth();
+            
+            // 添加水平面属性
+            target.x_world1 = tracker.info.at("x_world1");
+            target.y_world1 = tracker.info.at("y_world1");
+            target.w_world1 = tracker.info.at("w_world1");
+            target.h_world1 = tracker.info.at("h_world1");
+            target.l_world1 = tracker.info.at("l_world1");
+            
+            // 添加三角形属性
+            target.x_world2 = tracker.info.at("x_world2");
+            target.y_world2 = tracker.info.at("y_world2");
+            target.w_world2 = tracker.info.at("w_world2");
+            target.h_world2 = tracker.info.at("h_world2");
+            target.l_world2 = tracker.info.at("l_world2");
+            
             
             reliable_tracks.push_back(target);
         }

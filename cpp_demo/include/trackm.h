@@ -47,6 +47,10 @@ public:
     std::vector<point_t> track_world_prediction(int steps) const;
     std::vector<point_t> track_earth_prediction(int steps) const;
 
+    // 添加获取原始点集的方法
+    const std::vector<point_t>& get_points_world() const { return points_world; }
+    const std::vector<point_t>& get_points_earth() const { return points_earth; }
+
     target_t last_detection;  // 存储最后一次更新的检测数据
 
     // 添加缺失的函数声明
@@ -60,6 +64,8 @@ private:
     EKalmanFilter ekf;
     std::vector<Box3D> track_history;
     float prev_confidence;
+    std::vector<point_t> points_world;  // 原始车辆坐标系点集
+    std::vector<point_t> points_earth;  // 原始大地坐标系点集
 };
 
 

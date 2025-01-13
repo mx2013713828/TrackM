@@ -179,6 +179,21 @@ void KF::update(const target_t& detection, float confidence) {
     info["class_id"] = detection.classid;
     info["score"] = detection.conf;
 
+    points_world = detection.points_world;
+    points_earth = detection.points_earth;
+
+    info["x_world1"] = detection.x_world1;
+    info["y_world1"] = detection.y_world1;
+    info["w_world1"] = detection.w_world1;
+    info["h_world1"] = detection.h_world1;
+    info["l_world1"] = detection.l_world1;
+
+    info["x_world2"] = detection.x_world2;
+    info["y_world2"] = detection.y_world2;
+    info["w_world2"] = detection.w_world2;
+    info["h_world2"] = detection.h_world2;
+    info["l_world2"] = detection.l_world2;
+
     // 构建观测向量
     Eigen::VectorXd z(11);  // 修改为 11 维
     
