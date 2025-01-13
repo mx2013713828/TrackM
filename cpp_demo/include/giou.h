@@ -53,6 +53,18 @@ typedef struct
     float  l_world;    // 长度  若雷达障碍物, 则为矩形框的长
     float  h_world;    // 高度　若雷达障碍物, 则为矩形框的高度
 
+    float  x_world1;   // horizontal plane 
+    float  y_world1;
+    float  w_world1;
+    float  h_world1;
+    float  l_world1;
+
+    float  x_world2;   // triangle
+    float  y_world2;
+    float  w_world2;
+    float  h_world2;
+    float  l_world2;
+    
     float  x_earth;    // 绝对坐标系或大地坐标系 若雷达障碍物, 则为矩形框中心点位置的坐标
     float  y_earth;    // 绝对坐标系或大地坐标系 若雷达障碍物, 则为矩形框中心点位置的坐标
     float  z_earth;    // 绝对坐标系或大地坐标系,若雷达障碍物, 则为矩形框中心点位置的坐标
@@ -70,7 +82,8 @@ typedef struct
     int    track_id;
 
     std::vector<point_t> points_world_predict; // 预测的该障碍物车辆坐标系下的轨迹
-    
+    std::vector<point_t> points_earth_predict; // 预测的该障碍物大地坐标系下的轨迹
+
     long   time_stamp;
 } target_t;
 
