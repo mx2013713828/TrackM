@@ -170,6 +170,7 @@ void TrackManager::create_new_trackers(const std::vector<target_t>& detections,
                   det.heading_earth;                       // 大地坐标系航向
         
         std::unordered_map<std::string, float> info = {
+            // 基本属性
             {"score", det.conf}, 
             {"class_id", static_cast<float>(det.classid)},
             {"x_pixel", static_cast<float>(det.x_pixel)},
@@ -179,10 +180,32 @@ void TrackManager::create_new_trackers(const std::vector<target_t>& detections,
             {"time_stamp", static_cast<float>(det.time_stamp)},
             {"property", static_cast<float>(det.property)},
             {"k", det.k},
-            {"s", det.s}
+            {"s", det.s},
+            
+            // 水平面属性
+            {"x_world1", det.x_world1},
+            {"y_world1", det.y_world1},
+            {"w_world1", det.w_world1},
+            {"h_world1", det.h_world1},
+            {"l_world1", det.l_world1},
+            
+            // 三角形属性
+            {"x_world2", det.x_world2},
+            {"y_world2", det.y_world2},
+            {"w_world2", det.w_world2},
+            {"h_world2", det.h_world2},
+            {"l_world2", det.l_world2}
         };
         
-        trackers.emplace_back(bbox3D, info, next_id++);  // 恢复原来的构造函数
+        // 创建新的跟踪器
+        KF tracker(bbox3D, info, next_id++);
+        
+        // 设置原始点集
+        tracker.points_world = det.points_world;
+        tracker.points_earth = det.points_earth;
+        
+        // 添加到跟踪器列表
+        trackers.push_back(std::move(tracker));
     }
 }
 

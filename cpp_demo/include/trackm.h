@@ -59,13 +59,15 @@ public:
     float get_yaw_speed() const;
     const std::vector<Box3D>& get_history() const;
 
+    // 公有成员
+    std::vector<point_t> points_world;  // 原始车辆坐标系点集
+    std::vector<point_t> points_earth;  // 原始大地坐标系点集
+
 private:
     void _init_kalman_filter();
     EKalmanFilter ekf;
     std::vector<Box3D> track_history;
     float prev_confidence;
-    std::vector<point_t> points_world;  // 原始车辆坐标系点集
-    std::vector<point_t> points_earth;  // 原始大地坐标系点集
 };
 
 
