@@ -83,7 +83,7 @@ std::vector<target_t> TrackManager::get_reliable_tracks() const {
             
             // 1. 更新车辆坐标系状态
             Eigen::VectorXd world_state = tracker.get_world_state();
-            std::cout << "World state: " << world_state.transpose() << std::endl;
+            // std::cout << "World state: " << world_state.transpose() << std::endl;
             
             target.x_world = world_state(0);
             target.y_world = world_state(1);

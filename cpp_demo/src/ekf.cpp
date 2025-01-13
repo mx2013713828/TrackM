@@ -94,21 +94,21 @@ void EKalmanFilter::predict() {
 
 void EKalmanFilter::update(const Eigen::VectorXd& z) {
     // 打印输入的观测向量
-    std::cout << "Observation z: " << z.transpose() << std::endl;
-    std::cout << "Current state x: " << x.transpose() << std::endl;
+    // std::cout << "Observation z: " << z.transpose() << std::endl;
+    // std::cout << "Current state x: " << x.transpose() << std::endl;
 
     // 计算测量残差
     Eigen::VectorXd y = z - H * x;
-    std::cout << "Measurement residual y: " << y.transpose() << std::endl;
+    // std::cout << "Measurement residual y: " << y.transpose() << std::endl;
 
     // 计算雅可比矩阵 H
     H = calculate_jacobian_h(x);
-    std::cout << "H matrix:\n" << H << std::endl;
+    // std::cout << "H matrix:\n" << H << std::endl;
 
     // 卡尔曼增益计算
     Eigen::MatrixXd PHt = P * H.transpose();
     Eigen::MatrixXd S = H * PHt + R;
-    std::cout << "Innovation covariance S:\n" << S << std::endl;
+    // std::cout << "Innovation covariance S:\n" << S << std::endl;
 
     // 检查 S 矩阵是否可逆
     Eigen::FullPivLU<Eigen::MatrixXd> lu(S);
@@ -118,12 +118,12 @@ void EKalmanFilter::update(const Eigen::VectorXd& z) {
     }
 
     Eigen::MatrixXd K = PHt * S.inverse();
-    std::cout << "Kalman gain K:\n" << K << std::endl;
+    // std::cout << "Kalman gain K:\n" << K << std::endl;
 
     // 更新状态向量和误差协方差矩阵
     x = x + K * y;
     P = (Eigen::MatrixXd::Identity(state_dim, state_dim) - K * H) * P;
 
-    std::cout << "Updated state x: " << x.transpose() << std::endl;
+    // std::cout << "Updated state x: " << x.transpose() << std::endl;
 }
 

@@ -203,33 +203,32 @@ void KF::update(const target_t& detection, float confidence) {
 
     // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
     double yaw_diff = limit_angle(new_yaw - previous_yaw);
-    bool large_yaw_change = std::abs(yaw_diff) > M_PI / 2;
+    bool large_yaw_change = std::abs(yaw_diff) > M_PI / 6;
 
     if (large_yaw_change) {
         if (this->hits < 6) {
             if (confidence > this->prev_confidence) {
                 // 采用新yaw
             } else if (confidence < this->prev_confidence) {
-                z(6) = previous_yaw;  // 保持原来的yaw
-                z(10) = detection.heading_earth;  // 相应更新大地坐标系的航向角
+                new_yaw = previous_yaw;
             } else {
-                z(6) = (previous_yaw + new_yaw) / 2;  // 平滑过渡
-                z(10) = (ekf.x(14) + detection.heading_earth) / 2;  // 平滑大地坐标系航向角
+                std::cout<<"large_yaw_change:平滑过渡"<<std::endl;
+                new_yaw = (previous_yaw + new_yaw) / 2;  // 平滑过渡
             }
         } else {
-            z(6) = previous_yaw;  // 忽略更新
-            z(10) = ekf.x(14);    // 保持原来的大地坐标系航向角
+            // 对于稳定的跟踪，使用更保守的更新
+            new_yaw = previous_yaw;
         }
     }
-
+    z(6) = previous_yaw + limit_angle(new_yaw - previous_yaw);
+    z(10) = ekf.x(14) + limit_angle(detection.heading_earth - ekf.x(14));
     // 更新卡尔曼滤波器状态
     ekf.update(z);
-    
-    std::cout << "After update, state: " << ekf.x.transpose() << std::endl;  // 添加调试信息
-
     // 确保更新后的航向角在 [-pi, pi] 范围内
     ekf.x(6) = limit_angle(ekf.x(6));
     ekf.x(14) = limit_angle(ekf.x(14));
+
+    // std::cout << "After update, state: " << ekf.x.transpose() << std::endl;  // 调试信息
 
     // 更新 prev_confidence 为当前帧的置信度
     this->prev_confidence = confidence;

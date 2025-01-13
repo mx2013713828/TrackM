@@ -132,7 +132,7 @@ int main() {
 
                 // 再保存预测结果
                 for (auto& tracker : trackers) {
-                    std::cout << "tracker: " << tracker.track_id << std::endl;
+                    // std::cout << "tracker: " << tracker.track_id << std::endl;
                     std::vector<point_t> future_predictions = tracker.track_world_prediction(20);
                     for (const auto& point : future_predictions) {
                         savefile_future << point.x << " " << point.y << " " << 0.0 << " "
