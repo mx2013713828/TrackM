@@ -69,7 +69,7 @@ int main() {
     std::sort(filePaths.begin(), filePaths.end(), compareFileNames);
 
     // 创建 TrackManager 对象
-    TrackManager track_manager(5, 3);
+    TrackManager track_manager(20, 10);
 
     int n = 0;
     // 逐个读取每个文件的内容并按行输出

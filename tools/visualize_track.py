@@ -87,81 +87,99 @@ def box_to_corners_2d(bbox):
     return [pc0.tolist(), pc1.tolist(), pc2.tolist(), pc3.tolist()]
 
 # 4. 自动播放点云和检测框并保存为视频
-def visualize_with_video_output(pcd_folder, detection_files, video_path, prediction_folder=None,pause_time=0.1, 
-                                x_range=None, y_range=None, z_range=None):
-    fig = plt.figure(figsize=(24, 24))  # 增大显示窗口
-    writer = FFMpegWriter(fps=int(1/pause_time))  # 使用 FFmpeg 保存视频
+def visualize_with_video_output(pcd_folder, detection_files, video_path, prediction_folder=None, pause_time=0.1, 
+                              x_range=None, y_range=None, z_range=None):
+    # 1. 预先设置 matplotlib 后端为 Agg，避免交互式显示
+    import matplotlib
+    matplotlib.use('Agg')
+    
+    fig = plt.figure(figsize=(24, 24))
+    writer = FFMpegWriter(fps=int(1/pause_time))
+
+    # 2. 预先加载所有点云数据到内存
+    print("Loading point clouds...")
+    pc_cache = {}
+    for detection_file in detection_files:
+        pcd_file = os.path.join(pcd_folder, os.path.basename(detection_file).split('.')[0] + '.pcd')
+        pc_cache[pcd_file] = load_point_cloud_within_range(pcd_file, x_range, y_range, z_range)
+    
+    # 3. 设置固定的绘图范围，避免每帧重新计算
+    ax = plt.gca()
+    if x_range and y_range:
+        ax.set_xlim(x_range)
+        ax.set_ylim(y_range)
+    
+    # 4. 减少重复创建的对象
+    text_props = dict(fontsize=10, color='blue', bbox=dict(facecolor='white', alpha=0.5))
+    frame_text_props = dict(fontsize=12, color='black', transform=ax.transAxes,
+                           verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
 
     with writer.saving(fig, video_path, dpi=100):
-        # for pcd_file, detection_file in zip(pc_files, detection_files):
-        for detection_file in detection_files:
-            plt.clf()  # 清除之前的图像以显示新帧
+        total_frames = len(detection_files)
+        for frame_idx, detection_file in enumerate(detection_files):
+            plt.clf()
             pcd_file = os.path.join(pcd_folder, os.path.basename(detection_file).split('.')[0] + '.pcd')
-            print(f"processing point cloud : {os.path.basename(pcd_file)}")
-            # 加载并过滤点云
-            pc = load_point_cloud_within_range(pcd_file, x_range=x_range, y_range=y_range, z_range=z_range)
-
-            # 加载检测框
-            detections = parse_detection(detection_file)
+            print(f"\rProcessing frame {frame_idx+1}/{total_frames}: {os.path.basename(pcd_file)}", end='')
             
-            # 读取对应时刻的未来轨迹
-            if prediction_folder != None:
-                prediction_file = os.path.join(prediction_folder, os.path.basename(detection_file).replace('cpp_result', 'cpp_result_future'))
-                future_predictions = parse_future_predictions(prediction_file)
-
-            # 绘制点云 (x, y)，增大点的大小
-            plt.scatter(pc[:, 0], pc[:, 1], s=0.1, c='gray', label='Point Cloud')
-
-            # 绘制检测框
+            # 5. 使用缓存的点云数据
+            pc = pc_cache[pcd_file]
+            
+            # 6. 一次性绘制所有点云，而不是一个个点
+            plt.scatter(pc[:, 0], pc[:, 1], s=0.1, c='gray', rasterized=True)
+            
+            # 7. 批量处理检测框
+            detections = parse_detection(detection_file)
+            corners_list = []
+            texts = []
+            arrows = []
+            
             for detection in detections:
-                corners = box_to_corners_2d(detection)  
+                corners = np.array(box_to_corners_2d(detection))
+                corners = np.concatenate([corners, corners[0:1, :]])
+                corners_list.append(corners)
                 
-                # 转换为 NumPy 数组，以便进行切片
-                corners = np.array(corners)
-                corners = np.concatenate([corners, corners[0:1, :]])  # 闭合四边形
-
-                # 绘制边界框
-                plt.plot(corners[:, 0], corners[:, 1], color='red')
-
-                # 计算车头箭头的起始点和终止点
+                # 准备箭头数据
                 cx, cy = detection['x'], detection['y']
                 yaw = detection['yaw']
-                arrow_length = 4.0  # 增加箭头长度
-                arrow_dx = arrow_length * np.cos(yaw)
-                arrow_dy = arrow_length * np.sin(yaw)
-
-                # 绘制车头箭头
-                plt.arrow(cx, cy, arrow_dx, arrow_dy, 
-                          head_width=0.7, head_length=0.8, fc='orange', ec='orange')
-
-                # 在框上显示 class_id 和 track_id
-                plt.text(cx, cy + 1, f"CID: {detection['class_id']}, TID: {detection['track_id']}",
-                         fontsize=10, color='blue', bbox=dict(facecolor='white', alpha=0.5))
-
-            # 绘制未来轨迹的中心点
+                arrow_length = 4.0
+                arrows.append([cx, cy, 
+                             arrow_length * np.cos(yaw),
+                             arrow_length * np.sin(yaw)])
+                
+                texts.append([cx, cy + 1, 
+                            f"CID: {detection['class_id']}, TID: {detection['track_id']}"])
+            
+            # 8. 批量绘制
+            for corners in corners_list:
+                plt.plot(corners[:, 0], corners[:, 1], color='red')
+            
+            for arrow in arrows:
+                plt.arrow(arrow[0], arrow[1], arrow[2], arrow[3],
+                         head_width=0.7, head_length=0.8, fc='orange', ec='orange')
+            
+            for text in texts:
+                plt.text(text[0], text[1], text[2], **text_props)
+            
+            # 9. 如果有预测轨迹，一次性绘制
             if prediction_folder:
-                for future_track in future_predictions:
-                    # 获取每个预测框的中心点坐标
-                    center_x = future_track['x']
-                    center_y = future_track['y']
-                    
-                    # 绘制中心点，设置颜色、大小和透明度等
-                    plt.scatter(center_x, center_y, color='blue', marker='o', alpha=0.5)
-
-
-            # 在左上角显示当前帧文件名
+                prediction_file = os.path.join(prediction_folder, 
+                    os.path.basename(detection_file).replace('cpp_result', 'cpp_result_future'))
+                future_predictions = parse_future_predictions(prediction_file)
+                
+                centers = np.array([[track['x'], track['y']] 
+                                  for track in future_predictions])
+                if len(centers) > 0:
+                    plt.scatter(centers[:, 0], centers[:, 1], 
+                              color='blue', marker='o', alpha=0.5)
+            
             plt.text(0.01, 0.99, f"Frame: {os.path.basename(pcd_file)}", 
-                     fontsize=12, color='black', transform=plt.gca().transAxes,
-                     verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
-
-
+                    **frame_text_props)
+            
             plt.axis('equal')
-            plt.xlabel('X')
-            plt.ylabel('Y')
-            plt.title('2D Bird\'s Eye View (BEV)')
             plt.grid(True)
-
-            writer.grab_frame()  # 记录当前帧
+            writer.grab_frame()
+    
+    print("\nVideo generation completed!")
 
 # 5. 处理文件夹中的 PCD 和检测文件
 def process_folders_with_video_output(pcd_folder, detection_folder, video_path, prediction_folder = None,pause_time=0.1, 

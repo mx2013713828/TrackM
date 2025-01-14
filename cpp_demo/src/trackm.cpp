@@ -92,7 +92,7 @@ void KF::_init_kalman_filter() {
     // 大地坐标系速度初始化为0
     ekf.x.segment<4>(15).setZero();  // vx,vy,vz,v_heading_earth
 
-    std::cout << "Initial state: " << ekf.x.transpose() << std::endl;
+    // std::cout << "Initial state: " << ekf.x.transpose() << std::endl;
 }
 
 void KF::predict() {
@@ -247,6 +247,43 @@ void KF::update(const target_t& detection, float confidence) {
 
     // 更新 prev_confidence 为当前帧的置信度
     this->prev_confidence = confidence;
+
+    // 获取当前状态的尺寸
+    double current_w = ekf.x(3);
+    double current_l = ekf.x(4);
+    double current_h = ekf.x(5);
+
+    // 计算尺寸变化比例
+    double w_ratio = std::abs(detection.w_world / current_w);
+    double l_ratio = std::abs(detection.l_world / current_l);
+    double h_ratio = std::abs(detection.h_world / current_h);
+
+    // 设置形变阈值（例如允许20%的变化）
+    const double shape_change_threshold = 1.2;
+    bool large_shape_change = (w_ratio > shape_change_threshold || w_ratio < 1/shape_change_threshold ||
+                             l_ratio > shape_change_threshold || l_ratio < 1/shape_change_threshold ||
+                             h_ratio > shape_change_threshold || h_ratio < 1/shape_change_threshold);
+
+    if (large_shape_change) {
+        if (this->hits < 6) {
+            if (confidence > this->prev_confidence) {
+                // 采用新的尺寸
+                z(3) = detection.w_world;
+                z(4) = detection.l_world;
+                z(5) = detection.h_world;
+            } else {
+                // 保持原有尺寸
+                z(3) = current_w;
+                z(4) = current_l;
+                z(5) = current_h;
+            }
+        } else {
+            // 对于稳定的跟踪，使用平滑过渡
+            z(3) = (current_w + detection.w_world) / 2;
+            z(4) = (current_l + detection.l_world) / 2;
+            z(5) = (current_h + detection.h_world) / 2;
+        }
+    }
 }
 
 
@@ -267,8 +304,14 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
         for (size_t t = 0; t < trackers.size(); ++t) {
             Box3D boxa_3d = detections[d];
             Box3D boxb_3d = trackers[t];
+            
+            // 如果类别不同，设置IoU为负值，确保不会匹配
+            if (boxa_3d.class_id != boxb_3d.class_id) {
+                iou_matrix(d, t) = -1;
+                continue;
+            }
+            
             auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
-            // std::cout<<"giou: "<<giou<<std::endl;
             iou_matrix(d, t) = giou;
         }
     }

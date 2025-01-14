@@ -50,12 +50,18 @@ void TrackManager::update(const std::vector<target_t>& detections) {
         // 获取跟踪器状态
         std::vector<Box3D> tracker_states;
         for (const auto& tracker : trackers) {
-            tracker_states.push_back(Box3D(tracker.get_world_state()));
+            Eigen::VectorXd state = tracker.get_world_state();
+            Box3D box(state(0), state(1), state(2),  // x, y, z
+                      state(3), state(4), state(5),   // w, l, h
+                      state(6),                       // heading
+                      static_cast<int>(tracker.info.at("class_id")),  // class_id
+                      tracker.info.at("score"));      // score
+            tracker_states.push_back(box);
         }
 
         // 关联检测和跟踪器
         auto [matches, unmatched_detections, unmatched_trackers] = 
-            associate_detections_to_trackers(detection_boxes, tracker_states, -0.25);
+            associate_detections_to_trackers(detection_boxes, tracker_states, 0.1);
 
         // 更新跟踪器
         update_trackers(detections, matches);
