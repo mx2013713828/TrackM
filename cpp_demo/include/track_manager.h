@@ -33,12 +33,12 @@ public:
     std::vector<target_t> get_reliable_tracks() const;
     
     // 获取所有跟踪器的引用（用于测试和可视化）
-    std::vector<KF>& get_all_trackers() {
+    std::vector<Filter>& get_all_trackers() {
         return trackers;
     }
 
 private:
-    std::vector<KF> trackers;
+    std::vector<Filter> trackers;
     int next_id;
     int max_age;
     int min_hits;

@@ -28,7 +28,15 @@ TrackManager::TrackManager(int max_age, int min_hits)
 void TrackManager::update(const std::vector<target_t>& detections) {
     // 预测所有跟踪器的状态
     for (auto& tracker : trackers) {
+        // 打印预测前的状态
+        std::cout << "Before prediction, tracker " << tracker.track_id 
+                  << " state: " << tracker.get_state().transpose() << std::endl;
+        
         tracker.predict();
+        
+        // 打印预测后的状态
+        std::cout << "After prediction, tracker " << tracker.track_id 
+                  << " state: " << tracker.get_state().transpose() << std::endl;
     }
 
     // 将 target_t 转换为 Box3D 用于关联
@@ -52,16 +60,16 @@ void TrackManager::update(const std::vector<target_t>& detections) {
         for (const auto& tracker : trackers) {
             Eigen::VectorXd state = tracker.get_world_state();
             Box3D box(state(0), state(1), state(2),  // x, y, z
-                      state(3), state(4), state(5),   // w, l, h
-                      state(6),                       // heading
-                      static_cast<int>(tracker.info.at("class_id")),  // class_id
-                      tracker.info.at("score"));      // score
+                     state(3), state(4), state(5),   // w, l, h
+                     state(6),                       // heading
+                     static_cast<int>(tracker.info.at("class_id")),  // class_id
+                     tracker.info.at("score"));      // score
             tracker_states.push_back(box);
         }
 
         // 关联检测和跟踪器
         auto [matches, unmatched_detections, unmatched_trackers] = 
-            associate_detections_to_trackers(detection_boxes, tracker_states, 0.1);
+            associate_detections_to_trackers(detection_boxes, tracker_states, -0.1);
 
         // 更新跟踪器
         update_trackers(detections, matches);
@@ -73,12 +81,13 @@ void TrackManager::update(const std::vector<target_t>& detections) {
         increment_age_unmatched_trackers(unmatched_trackers);
     }
 
-    // 移除长时间未命中的跟踪器
-    trackers.erase(std::remove_if(trackers.begin(), trackers.end(),
-                                 [this](const KF& tracker) { 
-                                     return tracker.time_since_update >= max_age; 
-                                 }),
-                  trackers.end());
+    // 移除过期的跟踪器
+    trackers.erase(
+        std::remove_if(trackers.begin(), trackers.end(),
+                      [this](const Filter& tracker) {
+                          return tracker.time_since_update > max_age;
+                      }),
+        trackers.end());
 }
 
 std::vector<target_t> TrackManager::get_reliable_tracks() const {
@@ -167,14 +176,16 @@ void TrackManager::create_new_trackers(const std::vector<target_t>& detections,
                                      const std::vector<int>& unmatched_detections) {
     for (int idx : unmatched_detections) {
         const target_t& det = detections[idx];
-        // 修改为11维向量，包含车辆坐标系和大地坐标系的位置信息
-        Eigen::VectorXd bbox3D(11);
-        bbox3D << det.x_world, det.y_world, det.z_world,  // 车辆坐标系位置
-                  det.w_world, det.l_world, det.h_world, 
-                  det.heading_world,                       // 车辆坐标系航向
-                  det.x_earth, det.y_earth, det.z_earth,  // 大地坐标系位置
-                  det.heading_earth;                       // 大地坐标系航向
         
+        // 构建初始状态向量
+        Eigen::VectorXd bbox3D(11);
+        bbox3D << det.x_world, det.y_world, det.z_world,
+                  det.w_world, det.l_world, det.h_world,
+                  det.heading_world,
+                  det.x_earth, det.y_earth, det.z_earth,
+                  det.heading_earth;
+        
+        // 设置所有属性
         std::unordered_map<std::string, float> info = {
             // 基本属性
             {"score", det.conf}, 
@@ -203,14 +214,15 @@ void TrackManager::create_new_trackers(const std::vector<target_t>& detections,
             {"l_world2", det.l_world2}
         };
         
-        // 创建新的跟踪器
-        KF tracker(bbox3D, info, next_id++);
+        // 创建跟踪器
+        // Filter tracker(bbox3D, info, next_id++, FilterType::KF);    // 线性系统使用KF
+        // Filter tracker(bbox3D, info, next_id++, FilterType::EKF);   // 非线性系统使用EKF
+        Filter tracker(bbox3D, info, next_id++, FilterType::IEKF);  // 非线性系统使用IEKF，更稳定
         
         // 设置原始点集
         tracker.points_world = det.points_world;
         tracker.points_earth = det.points_earth;
         
-        // 添加到跟踪器列表
         trackers.push_back(std::move(tracker));
     }
 }
@@ -221,7 +233,17 @@ void TrackManager::update_trackers(const std::vector<target_t>& detections,
         int detection_idx = match[0];
         int tracker_idx = match[1];
         const target_t& det = detections[detection_idx];
+        
+        // 打印更新前的状态
+        std::cout << "Before update, tracker " << trackers[tracker_idx].track_id 
+                  << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
+        
         trackers[tracker_idx].update(det, det.conf);
+        
+        // 打印更新后的状态
+        std::cout << "After update, tracker " << trackers[tracker_idx].track_id 
+                  << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
+        
         trackers[tracker_idx].hits++;
         trackers[tracker_idx].time_since_update = 0;
     }

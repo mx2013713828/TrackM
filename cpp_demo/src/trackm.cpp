@@ -8,15 +8,11 @@
 
 #include "../include/trackm.h"
 #include "../include/kalman_filter.h"
+#include "../include/ekf.h"
+#include "../include/iekf.h"
 #include <algorithm>
 #include <iostream>
-#include <tuple>
-#include <Eigen/Dense>
-#include "../include/giou.h"
-#include <numeric>
-#include <vector>
-#include <unordered_map>
-
+#include <numeric>  // 为 std::iota
 
 // 将角度限制在 [-pi, pi] 范围内
 double limit_angle(double angle) {
@@ -25,148 +21,123 @@ double limit_angle(double angle) {
     return angle;
 }
 
-Filter::Filter(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), hits(1), info(info) {}
+Filter::Filter(const Eigen::VectorXd& bbox3D, 
+              const std::unordered_map<std::string, float>& info, 
+              int Track_ID,
+              FilterType filter_type)
+    : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), 
+      hits(1), info(info), prev_confidence(0.0) {
+    // 添加调试信息
+    std::cout << "Creating new filter with ID: " << Track_ID << std::endl;
+    std::cout << "Initial position: " << bbox3D.transpose() << std::endl;
+    
+    init_filter(filter_type);
+}
 
-KF::KF(const Eigen::VectorXd& bbox3D, const std::unordered_map<std::string, float>& info, int Track_ID)
-    : Filter(bbox3D, info, Track_ID), ekf(19, 11) {
+void Filter::init_filter(FilterType filter_type) {
+    std::cout << "Initializing filter with type: " 
+              << (filter_type == FilterType::EKF ? "EKF" : 
+                  filter_type == FilterType::KF ? "KF" : "IEKF") 
+              << std::endl;
+              
+    switch (filter_type) {
+        case FilterType::KF:
+            filter = std::make_unique<KalmanFilter>(19, 11);
+            break;
+        case FilterType::EKF:
+            filter = std::make_unique<ExtendedKalmanFilter>(19, 11);
+            break;
+        case FilterType::IEKF:
+            filter = std::make_unique<IteratedExtendedKalmanFilter>(19, 11);
+            break;
+    }
     _init_kalman_filter();
 }
-
-void KF::_init_kalman_filter() {
+    
+void Filter::_init_kalman_filter() {
     double dt = 0.1;
-
-    // 1. 状态转移矩阵 F 初始化
+    
+    // 1. 设置状态转移矩阵 F
+    Eigen::MatrixXd F = Eigen::MatrixXd::Identity(19, 19);
+    
     // 车辆坐标系部分
-    ekf.F(0, 7) = dt;   // x_world 对 vx_world 的影响
-    ekf.F(1, 8) = dt;   // y_world 对 vy_world 的影响
-    ekf.F(2, 9) = dt;   // z_world 对 vz_world 的影响
-    ekf.F(6, 10) = dt;  // heading_world 对 v_heading_world 的影响
-
+    F(0, 7) = dt;   // x_world 对 vx_world 的影响
+    F(1, 8) = dt;   // y_world 对 vy_world 的影响
+    F(2, 9) = dt;   // z_world 对 vz_world 的影响
+    F(6, 10) = dt;  // heading_world 对 v_heading_world 的影响
+    
     // 大地坐标系部分
-    ekf.F(11, 15) = dt;  // x_earth 对 vx_earth 的影响
-    ekf.F(12, 16) = dt;  // y_earth 对 vy_earth 的影响
-    ekf.F(13, 17) = dt;  // z_earth 对 vz_earth 的影响
-    ekf.F(14, 18) = dt;  // heading_earth 对 v_heading_earth 的影响
-
-    // 2. 测量矩阵 H 初始化 (14x19)
-    // 车辆坐标系观测 (7维)
-    for (int i = 0; i < 7; ++i) {
-        ekf.H(i, i) = 1;  // x,y,z,w,l,h,heading_world
-    }
-    // 大地坐标系观测 (4维)
-    ekf.H(7, 11) = 1;   // x_earth
-    ekf.H(8, 12) = 1;   // y_earth
-    ekf.H(9, 13) = 1;   // z_earth
-    ekf.H(10, 14) = 1;  // heading_earth
-
-    // 3. 状态协方差矩阵 P 初始化 - 调整初始不确定性
-    ekf.P = Eigen::MatrixXd::Identity(19, 19);
-    ekf.P.topLeftCorner(7, 7) *= 1.0;  // 降低位置和尺寸的不确定性
-    ekf.P.block<4, 4>(7, 7) *= 10.0;   // 速度的不确定性适中
-    ekf.P.block<4, 4>(11, 11) *= 1.0;  // 降低大地坐标系位置的不确定性
-    ekf.P.block<4, 4>(15, 15) *= 10.0; // 速度的不确定性适中
-
-    // 4. 过程噪声协方差矩阵 Q 初始化 - 调小过程噪声
-    ekf.Q = Eigen::MatrixXd::Identity(19, 19) * 0.1;
-    ekf.Q.block<4, 4>(7, 7) *= 1.0;   // 速度过程噪声适中
-    ekf.Q(10, 10) = 0.1;              // heading_world 速度噪声较小
-    ekf.Q.block<4, 4>(15, 15) *= 1.0; // 大地坐标系速度噪声适中
-    ekf.Q(18, 18) = 0.1;              // heading_earth 速度噪声较小
-
-    // 5. 测量噪声协方差矩阵 R 初始化 - 调整测量噪声
-    ekf.R = Eigen::MatrixXd::Identity(11, 11) * 0.1;  // 降低整体测量噪声
-
-    // 6. 状态向量初始化
-    ekf.x = Eigen::VectorXd::Zero(19);
+    F(11, 15) = dt;  // x_earth 对 vx_earth 的影响
+    F(12, 16) = dt;  // y_earth 对 vy_earth 的影响
+    F(13, 17) = dt;  // z_earth 对 vz_earth 的影响
+    F(14, 18) = dt;  // heading_earth 对 v_heading_earth 的影响
     
-    // 车辆坐标系状态初始化
-    ekf.x.head<7>() = initial_pos.head<7>();  // 前7维是车辆坐标系状态
+    // 2. 设置观测矩阵 H
+    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(11, 19);
+    // 车辆坐标系观测
+    H.block<7,7>(0,0) = Eigen::MatrixXd::Identity(7,7);  // x,y,z,w,l,h,heading
+    // 大地坐标系观测
+    H.block<4,4>(7,11) = Eigen::MatrixXd::Identity(4,4); // x,y,z,heading
+
+    // 3. 设置过程噪声协方差矩阵 Q
+    Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(19, 19);
+    Q.block<7,7>(0,0) *= 1.0;    // 位置和尺寸噪声较小
+    Q.block<4,4>(7,7) *= 10.0;   // 速度过程噪声适中
+    Q.block<4,4>(11,11) *= 1.0;  // 大地坐标系位置噪声较小
+    Q.block<4,4>(15,15) *= 10.0; // 大地坐标系速度噪声适中
+
+    // 4. 设置测量噪声协方差矩阵 R
+    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(11, 11);
+    R.block<3,3>(0,0) *= 0.1;     // 位置测量噪声小
+    R.block<3,3>(3,3) *= 1.0;     // 尺寸测量噪声较大
+    R(6,6) = 0.1;                 // 航向角测量噪声小
+    R.block<4,4>(7,7) *= 0.1;     // 大地坐标系测量噪声小
+
+    // 5. 设置初始状态向量
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(19);
+    x.head<7>() = initial_pos.head<7>();  // 车辆坐标系状态
+    x.segment<4>(11) = initial_pos.tail<4>();  // 大地坐标系状态
     
-    // 车辆坐标系速度初始化为0
-    ekf.x.segment<4>(7).setZero();  // vx,vy,vz,v_heading_world
-    
-    // 大地坐标系位置初始化
-    ekf.x.segment<4>(11) = initial_pos.tail<4>();  // 后4维是大地坐标系状态
-    
-    // 大地坐标系速度初始化为0
-    ekf.x.segment<4>(15).setZero();  // vx,vy,vz,v_heading_earth
+    // 初始化速度为小值而不是0
+    x.segment<4>(7).setConstant(0.1);   // 车辆坐标系速度
+    x.segment<4>(15).setConstant(0.1);  // 大地坐标系速度
 
-    // std::cout << "Initial state: " << ekf.x.transpose() << std::endl;
-}
+    // 6. 设置初始状态协方差矩阵
+    Eigen::MatrixXd P = Eigen::MatrixXd::Identity(19, 19);
+    P.block<7,7>(0,0) *= 1.0;     // 位置和尺寸的初始不确定性较小
+    P.block<4,4>(7,7) *= 10.0;    // 速度的初始不确定性适中
+    P.block<4,4>(11,11) *= 1.0;   // 大地坐标系位置的初始不确定性较小
+    P.block<4,4>(15,15) *= 10.0;  // 大地坐标系速度的初始不确定性适中
 
-void KF::predict() {
-    ekf.predict();
-}
-Eigen::VectorXd KF::get_state() const {
-    return ekf.x;
-}
-
-Eigen::VectorXd KF::get_velocity() const {
-    return ekf.x.tail<3>();
-}
-
-float KF::get_yaw_speed() const {
-    // 获取状态向量中的速度分量 vx 和 vy
-    float vx = ekf.x(7); // 
-    float vy = ekf.x(8); // 
-    float yaw = ekf.x(6); // 
-
-    // 计算沿 yaw 方向的速度    
-    float yaw_speed = vx * std::cos(yaw) + vy * std::sin(yaw);
-
-    // m/s
-    return yaw_speed;
-}
-
-const std::vector<Box3D>& KF::get_history() const {
-    return track_history;
-}
-
-std::vector<point_t> KF::track_world_prediction(int steps) const {
-    std::vector<point_t> predictions;
-    EKalmanFilter future_kf = ekf;  // 创建临时副本进行预测
-
-    for (int i = 0; i < steps; ++i) {
-        future_kf.predict();
-        
-        point_t pred_point;
-        pred_point.x = future_kf.x(0);  // x_world
-        pred_point.y = future_kf.x(1);  // y_world
-        predictions.push_back(pred_point);
+    // 重要：先设置矩阵，再设置状态
+    if (auto* kf = dynamic_cast<KalmanFilter*>(filter.get())) {
+        kf->set_transition_matrix(F);
+        kf->set_measurement_matrix(H);
+        kf->set_process_noise(Q);
+        kf->set_measurement_noise(R);
+        kf->set_state(x);
+        kf->set_covariance(P);
+    } else if (auto* ekf = dynamic_cast<ExtendedKalmanFilter*>(filter.get())) {
+        ekf->set_transition_matrix(F);
+        ekf->set_process_noise(Q);
+        ekf->set_measurement_noise(R);
+        ekf->set_state(x);
+        ekf->set_covariance(P);
+    } else if (auto* iekf = dynamic_cast<IteratedExtendedKalmanFilter*>(filter.get())) {
+        iekf->set_transition_matrix(F);
+        iekf->set_process_noise(Q);
+        iekf->set_measurement_noise(R);
+        iekf->set_state(x);
+        iekf->set_covariance(P);
     }
 
-    return predictions;
+    // 添加调试信息
+    std::cout << "Initial state: " << x.transpose() << std::endl;
+    // std::cout << "Transition matrix F:\n" << F << std::endl;
 }
 
-std::vector<point_t> KF::track_earth_prediction(int steps) const {
-    std::vector<point_t> predictions;
-    EKalmanFilter future_kf = ekf;  // 创建临时副本进行预测
-
-    for (int i = 0; i < steps; ++i) {
-        future_kf.predict();
-        
-        point_t pred_point;
-        pred_point.x = future_kf.x(11);  // x_earth
-        pred_point.y = future_kf.x(12);  // y_earth
-        predictions.push_back(pred_point);
-    }
-
-    return predictions;
-}
-
-Eigen::VectorXd KF::get_world_state() const {
-    return ekf.x.head<7>();  // 返回车辆坐标系状态
-}
-
-Eigen::VectorXd KF::get_earth_state() const {
-    Eigen::VectorXd earth_state(4);  // x, y, z, heading
-    earth_state << ekf.x.segment<3>(11), ekf.x(14);  // 返回大地坐标系状态
-    return earth_state;
-}
-
-void KF::update(const target_t& detection, float confidence) {
-    // 更新不需要卡尔曼滤波的属性
+void Filter::update(const target_t& detection, float confidence) {
+    // 1. 更新不需要卡尔曼滤波的属性
     info["x_pixel"] = detection.x_pixel;
     info["y_pixel"] = detection.y_pixel;
     info["w_pixel"] = detection.w_pixel;
@@ -175,117 +146,123 @@ void KF::update(const target_t& detection, float confidence) {
     info["property"] = detection.property;
     info["k"] = detection.k;
     info["s"] = detection.s;
-    // 更新分类和置信度
-    info["class_id"] = detection.classid;
-    info["score"] = detection.conf;
-
-    points_world = detection.points_world;
-    points_earth = detection.points_earth;
-
+    
+    // 更新水平面属性
     info["x_world1"] = detection.x_world1;
     info["y_world1"] = detection.y_world1;
     info["w_world1"] = detection.w_world1;
     info["h_world1"] = detection.h_world1;
     info["l_world1"] = detection.l_world1;
-
+    
+    // 更新三角形属性
     info["x_world2"] = detection.x_world2;
     info["y_world2"] = detection.y_world2;
     info["w_world2"] = detection.w_world2;
     info["h_world2"] = detection.h_world2;
     info["l_world2"] = detection.l_world2;
 
-    // 构建观测向量
-    Eigen::VectorXd z(11);  // 修改为 11 维
-    
-    // 车辆坐标系观测 (7维)
-    z(0) = detection.x_world;
-    z(1) = detection.y_world;
-    z(2) = detection.z_world;
-    z(3) = detection.w_world;
-    z(4) = detection.l_world;
-    z(5) = detection.h_world;
-    z(6) = detection.heading_world;
+    // 更新分类和置信度
+    info["class_id"] = detection.classid;
+    info["score"] = detection.conf;
 
-    // 大地坐标系观测 (4维)
-    z(7) = detection.x_earth;
-    z(8) = detection.y_earth;
-    z(9) = detection.z_earth;
-    z(10) = detection.heading_earth;
+    // 2. 保存原始点集
+    points_world = detection.points_world;
+    points_earth = detection.points_earth;
+    last_detection = detection;
 
-    // 获取卡尔曼滤波器中的 yaw 值
-    double previous_yaw = ekf.x(6);
-    double new_yaw = detection.heading_world;
-
-    // 计算 yaw 的差值并限制在 [-pi, pi] 范围内
-    double yaw_diff = limit_angle(new_yaw - previous_yaw);
-    bool large_yaw_change = std::abs(yaw_diff) > M_PI / 6;
+    // 3. 处理角度偏移
+    double previous_yaw_world = filter->get_state()(6);
+    double new_yaw_world = detection.heading_world;
+    double yaw_diff_world = limit_angle(new_yaw_world - previous_yaw_world);
+    bool large_yaw_change = std::abs(yaw_diff_world) > M_PI / 6;
 
     if (large_yaw_change) {
-        if (this->hits < 6) {
-            if (confidence > this->prev_confidence) {
-                // 采用新yaw
-            } else if (confidence < this->prev_confidence) {
-                new_yaw = previous_yaw;
+        if (hits < 6) {
+            if (confidence > prev_confidence) {
+                // 采用新的yaw
+            } else if (confidence < prev_confidence) {
+                new_yaw_world = previous_yaw_world;
             } else {
-                std::cout<<"large_yaw_change:平滑过渡"<<std::endl;
-                new_yaw = (previous_yaw + new_yaw) / 2;  // 平滑过渡
+                std::cout << "large_yaw_change: 平滑过渡" << std::endl;
+                new_yaw_world = (previous_yaw_world + new_yaw_world) / 2;  // 平滑过渡
             }
         } else {
             // 对于稳定的跟踪，使用更保守的更新
-            new_yaw = previous_yaw;
+            new_yaw_world = previous_yaw_world;
         }
     }
-    z(6) = previous_yaw + limit_angle(new_yaw - previous_yaw);
-    z(10) = ekf.x(14) + limit_angle(detection.heading_earth - ekf.x(14));
-    // 更新卡尔曼滤波器状态
-    ekf.update(z);
-    // 确保更新后的航向角在 [-pi, pi] 范围内
-    ekf.x(6) = limit_angle(ekf.x(6));
-    ekf.x(14) = limit_angle(ekf.x(14));
 
-    // std::cout << "After update, state: " << ekf.x.transpose() << std::endl;  // 调试信息
-
-    // 更新 prev_confidence 为当前帧的置信度
-    this->prev_confidence = confidence;
-
-    // 获取当前状态的尺寸
-    double current_w = ekf.x(3);
-    double current_l = ekf.x(4);
-    double current_h = ekf.x(5);
+    // 4. 处理尺寸变化
+    Eigen::VectorXd current_state = filter->get_state();
+    double current_w = current_state(3);
+    double current_l = current_state(4);
+    double current_h = current_state(5);
 
     // 计算尺寸变化比例
     double w_ratio = std::abs(detection.w_world / current_w);
     double l_ratio = std::abs(detection.l_world / current_l);
     double h_ratio = std::abs(detection.h_world / current_h);
 
-    // 设置形变阈值（例如允许20%的变化）
+    // 设置形变阈值（允许20%的变化）
     const double shape_change_threshold = 1.2;
     bool large_shape_change = (w_ratio > shape_change_threshold || w_ratio < 1/shape_change_threshold ||
                              l_ratio > shape_change_threshold || l_ratio < 1/shape_change_threshold ||
                              h_ratio > shape_change_threshold || h_ratio < 1/shape_change_threshold);
 
+    double final_w = detection.w_world;
+    double final_l = detection.l_world;
+    double final_h = detection.h_world;
+
     if (large_shape_change) {
-        if (this->hits < 6) {
-            if (confidence > this->prev_confidence) {
+        if (hits < 6) {
+            if (confidence > prev_confidence) {
                 // 采用新的尺寸
-                z(3) = detection.w_world;
-                z(4) = detection.l_world;
-                z(5) = detection.h_world;
             } else {
                 // 保持原有尺寸
-                z(3) = current_w;
-                z(4) = current_l;
-                z(5) = current_h;
+                final_w = current_w;
+                final_l = current_l;
+                final_h = current_h;
             }
         } else {
             // 对于稳定的跟踪，使用平滑过渡
-            z(3) = (current_w + detection.w_world) / 2;
-            z(4) = (current_l + detection.l_world) / 2;
-            z(5) = (current_h + detection.h_world) / 2;
+            final_w = (current_w + detection.w_world) / 2;
+            final_l = (current_l + detection.l_world) / 2;
+            final_h = (current_h + detection.h_world) / 2;
         }
     }
-}
 
+    // 5. 构建观测向量
+    Eigen::VectorXd z(11);
+    z << detection.x_world, detection.y_world, detection.z_world,
+         final_w, final_l, final_h,
+         new_yaw_world,
+         detection.x_earth, detection.y_earth, detection.z_earth,
+         detection.heading_earth;
+
+    // 限制航向角变化
+    z(6) = previous_yaw_world + limit_angle(new_yaw_world - previous_yaw_world);
+    z(10) = filter->get_state()(14) + limit_angle(detection.heading_earth - filter->get_state()(14));
+
+    // 6. 更新滤波器
+    if (filter) {
+        filter->update(z);
+        
+        // 确保更新后的航向角在 [-pi, pi] 范围内
+        Eigen::VectorXd state = filter->get_state();
+        state(6) = limit_angle(state(6));   // 车辆坐标系航向角
+        state(14) = limit_angle(state(14)); // 大地坐标系航向角
+        filter->set_state(state);
+    }
+
+    // 7. 更新跟踪器状态
+    prev_confidence = confidence;
+    hits++;
+
+    track_history.push_back(Box3D(detection.x_world, detection.y_world, detection.z_world,
+                                 final_w, final_l, final_h,
+                                 new_yaw_world,
+                                 detection.classid, detection.conf));
+}
 
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
@@ -352,6 +329,129 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
     }
 
     return std::make_tuple(matches, unmatched_detections, unmatched_trackers);
+}
+void print_results(const std::vector<std::array<int, 2>>& matches,
+                  const std::vector<int>& unmatched_detections,
+                  const std::vector<int>& unmatched_trackers) {
+    std::cout << "Matches:" << std::endl;
+    for (const auto& match : matches) {
+        std::cout << "Detection " << match[0] << " -> Tracker " << match[1] << std::endl;
+    }
+    
+    std::cout << "\nUnmatched Detections:";
+    for (int id : unmatched_detections) {
+        std::cout << " " << id;
+    }
+    
+    std::cout << "\nUnmatched Trackers:";
+    for (int id : unmatched_trackers) {
+        std::cout << " " << id;
+    }
+    std::cout << std::endl;
+}
+
+Eigen::VectorXd Filter::get_world_state() const {
+    if (filter) {
+        return filter->get_state().head<7>();
+    }
+    return Eigen::VectorXd::Zero(7);
+}
+
+Eigen::VectorXd Filter::get_earth_state() const {
+    if (filter) {
+        Eigen::VectorXd state = filter->get_state();
+        Eigen::VectorXd earth_state(4);
+        earth_state << state.segment<3>(11), state(14);  // x,y,z,heading
+        return earth_state;
+    }
+    return Eigen::VectorXd::Zero(4);
+}
+
+Eigen::VectorXd Filter::get_state() const {
+    if (filter) {
+        return filter->get_state();
+    }
+    return Eigen::VectorXd::Zero(19);
+}
+
+Eigen::VectorXd Filter::get_velocity() const {
+    if (filter) {
+        Eigen::VectorXd state = filter->get_state();
+        return state.segment<3>(7);  // vx, vy, vz in world frame
+    }
+    return Eigen::VectorXd::Zero(3);
+}
+
+float Filter::get_yaw_speed() const {
+    if (filter) {
+        Eigen::VectorXd state = filter->get_state();
+        float vx = state(7);  // vx in world frame
+        float vy = state(8);  // vy in world frame
+        float v = std::sqrt(vx * vx + vy * vy);
+        float yaw_rate = state(10);  // heading rate in world frame
+        return yaw_rate;
+    }
+    return 0.0f;
+}
+
+const std::vector<Box3D>& Filter::get_history() const {
+    return track_history;
+}
+
+std::vector<point_t> Filter::track_world_prediction(int steps) const {
+    std::vector<point_t> predictions;
+    if (!filter) return predictions;
+
+    // 创建临时副本进行预测
+    auto temp_filter = std::unique_ptr<BaseFilter>(filter->clone());
+    Eigen::VectorXd current_state = temp_filter->get_state();
+
+    // 保存当前位置
+    point_t current_point;
+    current_point.x = current_state(0);
+    current_point.y = current_state(1);
+    predictions.push_back(current_point);
+
+    // 预测未来位置
+    for (int i = 0; i < steps; i++) {
+        temp_filter->predict();
+        current_state = temp_filter->get_state();
+        
+        point_t point;
+        point.x = current_state(0);
+        point.y = current_state(1);
+        predictions.push_back(point);
+    }
+
+    return predictions;
+}
+
+std::vector<point_t> Filter::track_earth_prediction(int steps) const {
+    std::vector<point_t> predictions;
+    if (!filter) return predictions;
+
+    // 创建临时副本进行预测
+    auto temp_filter = std::unique_ptr<BaseFilter>(filter->clone());
+    Eigen::VectorXd current_state = temp_filter->get_state();
+
+    // 保存当前位置
+    point_t current_point;
+    current_point.x = current_state(11);  // x in earth frame
+    current_point.y = current_state(12);  // y in earth frame
+    predictions.push_back(current_point);
+
+    // 预测未来位置
+    for (int i = 0; i < steps; i++) {
+        temp_filter->predict();
+        current_state = temp_filter->get_state();
+        
+        point_t point;
+        point.x = current_state(11);
+        point.y = current_state(12);
+        predictions.push_back(point);
+    }
+
+    return predictions;
 }
 
 

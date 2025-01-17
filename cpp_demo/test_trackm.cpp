@@ -120,7 +120,7 @@ int main() {
 
             // 保存预测轨迹
             if (savefile_future.is_open()) {
-                std::vector<KF>& trackers = track_manager.get_all_trackers();
+                std::vector<Filter>& trackers = track_manager.get_all_trackers();
                 // 先保存当前位置结果
                 
                 for (const auto& track : tracks) {
