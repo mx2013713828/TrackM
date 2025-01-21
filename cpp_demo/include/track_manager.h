@@ -5,6 +5,7 @@
  * Email:       97357473@qq.com
  * Description: Multi-object tracker management system.
  */
+#pragma once
 
 #include <iostream>
 #include <Eigen/Dense>
