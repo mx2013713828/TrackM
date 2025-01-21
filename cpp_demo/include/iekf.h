@@ -1,3 +1,10 @@
+/*
+ * File:        iekf.h
+ * Author:      Yufeng Ma
+ * Date:        2025-01-20
+ * Email:       97357473@qq.com
+ * Description: Iterated Extended Kalman filter declarations.
+ */
 #pragma once
 #include "base_filter.h"
 

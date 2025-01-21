@@ -1,3 +1,10 @@
+/*
+ * File:        iekf.cpp
+ * Author:      Yufeng Ma
+ * Date:        2025-01-20
+ * Email:       97357473@qq.com
+ * Description: Iterated EKF for improved nonlinear estimation.
+ */
 #include "../include/iekf.h"
 #include <iostream>
 #include <cmath>

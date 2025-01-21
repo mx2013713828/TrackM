@@ -1,11 +1,9 @@
 /*
  * File:        kalman_filter.cpp
  * Author:      Yufeng Ma
- * Date:        2024-06-01
+ * Date:        2025-01-20
  * Email:       97357473@qq.com
- * Description: Implements the KalmanFilter class methods, including the
- *              constructor, predict, and update functions, using the
- *              Eigen library for matrix operations.
+ * Description: Standard Kalman filter state estimation.
  */
 
 #include "../include/kalman_filter.h"

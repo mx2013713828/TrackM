@@ -1,7 +1,16 @@
+/*
+ * File:        base_filter.h
+ * Author:      Yufeng Ma
+ * Date:        2025-01-20
+ * Email:       97357473@qq.com
+ * Description: Abstract base class for Kalman filter variants.
+ */
+
 #ifndef BASE_FILTER_H
 #define BASE_FILTER_H
 
 #include <Eigen/Dense>
+
 
 class BaseFilter {
 public:

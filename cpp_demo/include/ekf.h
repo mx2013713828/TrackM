@@ -1,3 +1,11 @@
+/*
+ * File:        ekf.h
+ * Author:      Yufeng Ma
+ * Date:        2025-01-20
+ * Email:       97357473@qq.com
+ * Description: Extended Kalman filter declarations.
+ */
+
 #ifndef EKALMAN_FILTER_H
 #define EKALMAN_FILTER_H
 

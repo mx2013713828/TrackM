@@ -1,9 +1,9 @@
 /*
  * File:        trackm.cpp
  * Author:      Yufeng Ma
- * Date:        2024-06-01
+ * Date:        2025-01-20
  * Email:       97357473@qq.com
- * Description: Implementation of the tracking filter classes and matching algorithm.
+ * Description: Core tracking filter implementation and state estimation.
  */
 
 #include "../include/trackm.h"
@@ -28,17 +28,17 @@ Filter::Filter(const Eigen::VectorXd& bbox3D,
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), 
       hits(1), info(info), prev_confidence(0.0) {
     // 添加调试信息
-    std::cout << "Creating new filter with ID: " << Track_ID << std::endl;
-    std::cout << "Initial position: " << bbox3D.transpose() << std::endl;
+    // std::cout << "Creating new filter with ID: " << Track_ID << std::endl;
+    // std::cout << "Initial position: " << bbox3D.transpose() << std::endl;
     
     init_filter(filter_type);
 }
 
 void Filter::init_filter(FilterType filter_type) {
-    std::cout << "Initializing filter with type: " 
-              << (filter_type == FilterType::EKF ? "EKF" : 
-                  filter_type == FilterType::KF ? "KF" : "IEKF") 
-              << std::endl;
+    // std::cout << "Initializing filter with type: " 
+    //           << (filter_type == FilterType::EKF ? "EKF" : 
+    //               filter_type == FilterType::KF ? "KF" : "IEKF") 
+    //           << std::endl;
               
     switch (filter_type) {
         case FilterType::KF:
@@ -132,10 +132,11 @@ void Filter::_init_kalman_filter() {
     }
 
     // 添加调试信息
-    std::cout << "Initial state: " << x.transpose() << std::endl;
+    // std::cout << "Initial state: " << x.transpose() << std::endl;
     // std::cout << "Transition matrix F:\n" << F << std::endl;
 }
 
+// 最重要的函数
 void Filter::update(const target_t& detection, float confidence) {
     // 1. 更新不需要卡尔曼滤波的属性
     info["x_pixel"] = detection.x_pixel;
@@ -165,34 +166,133 @@ void Filter::update(const target_t& detection, float confidence) {
     info["class_id"] = detection.classid;
     info["score"] = detection.conf;
 
+    // 保存当前航向角，用于增量更新
+    previous_yaw_world = filter->get_state()(6);
+    previous_yaw_earth = filter->get_state()(14);
+
     // 2. 保存原始点集
     points_world = detection.points_world;
     points_earth = detection.points_earth;
     last_detection = detection;
 
-    // 3. 处理角度偏移
+    // 3. 处理位置突变
+    // 容易引起其他问题,暂时搁置
+
+    // 4. 处理角度偏移
+    auto [new_yaw_world, new_yaw_earth] = handle_heading_change(detection, confidence);
+
+    // 5. 处理尺寸变化
+    auto [final_w, final_l, final_h] = handle_size_change(detection, confidence);
+
+    // 6. 构建观测向量
+    Eigen::VectorXd z(11);
+    z << detection.x_world, detection.y_world, detection.z_world,
+         final_w, final_l, final_h,
+         new_yaw_world,
+         detection.x_earth, detection.y_earth, detection.z_earth,
+         new_yaw_earth;
+
+    // 使用增量更新航向角
+    z(6) = previous_yaw_world + limit_angle(new_yaw_world - previous_yaw_world);
+    z(10) = previous_yaw_earth + limit_angle(new_yaw_earth - previous_yaw_earth);
+
+    // 7. 更新滤波器
+    if (filter) {
+        // 添加状态检查
+        Eigen::VectorXd pre_state = filter->get_state();
+        bool has_invalid = false;
+        for (int i = 0; i < pre_state.size(); ++i) {
+            if (!std::isfinite(pre_state(i))) {
+                has_invalid = true;
+                std::cout << "Warning: Invalid state detected at index " << i << ": " << pre_state(i) << std::endl;
+            }
+        }
+
+        if (!has_invalid) {
+            filter->update(z);
+            
+            // 检查更新后的状态
+            Eigen::VectorXd state = filter->get_state();
+            bool state_valid = true;
+            for (int i = 0; i < state.size(); ++i) {
+                if (!std::isfinite(state(i))) {
+                    state_valid = false;
+                    // std::cout << "Warning: NaN/Inf detected at index " << i << " after update" << std::endl;
+                }
+            }
+
+            if (!state_valid) {
+                // 如果状态无效，回退到预测状态
+                filter->set_state(pre_state);
+                // std::cout << "Rolling back to previous state due to invalid update" << std::endl;
+            } else {
+                // 正常更新，限制航向角范围
+                state(6) = limit_angle(state(6));   // 车辆坐标系航向角
+                state(14) = limit_angle(state(14)); // 大地坐标系航向角
+                filter->set_state(state);
+            }
+        }
+    }
+
+    // 8. 更新跟踪器状态
+    prev_confidence = confidence;
+    hits++;
+
+    track_history.push_back(Box3D(detection.x_world, detection.y_world, detection.z_world,
+                                 final_w, final_l, final_h,
+                                 new_yaw_world,
+                                 detection.classid, detection.conf));
+}
+
+// 处理航向角变化
+std::pair<double, double> Filter::handle_heading_change(
+    const target_t& detection, 
+    double confidence) {
     double previous_yaw_world = filter->get_state()(6);
     double new_yaw_world = detection.heading_world;
+    double previous_yaw_earth = filter->get_state()(14);
+    double new_yaw_earth = detection.heading_earth;
+    
     double yaw_diff_world = limit_angle(new_yaw_world - previous_yaw_world);
-    bool large_yaw_change = std::abs(yaw_diff_world) > M_PI / 6;
+    double yaw_diff_earth = limit_angle(new_yaw_earth - previous_yaw_earth);
+    bool large_yaw_change_world = std::abs(yaw_diff_world) > M_PI / 12;
+    bool large_yaw_change_earth = std::abs(yaw_diff_earth) > M_PI / 12;
 
-    if (large_yaw_change) {
+    if (large_yaw_change_world) {
         if (hits < 6) {
             if (confidence > prev_confidence) {
                 // 采用新的yaw
             } else if (confidence < prev_confidence) {
                 new_yaw_world = previous_yaw_world;
             } else {
-                std::cout << "large_yaw_change: 平滑过渡" << std::endl;
-                new_yaw_world = (previous_yaw_world + new_yaw_world) / 2;  // 平滑过渡
+                new_yaw_world = (previous_yaw_world + new_yaw_world) / 2;
             }
         } else {
-            // 对于稳定的跟踪，使用更保守的更新
             new_yaw_world = previous_yaw_world;
         }
     }
+        
+    if (large_yaw_change_earth) {
+        if (hits < 6) {
+            if (confidence > prev_confidence) {
+                // 采用新的yaw
+            } else if (confidence < prev_confidence) {
+                new_yaw_earth = previous_yaw_earth;
+            } else {
+                new_yaw_earth = (previous_yaw_earth + new_yaw_earth) / 2;
+            }
+        } else {
+            new_yaw_earth = previous_yaw_earth;
+        }
+    }
 
-    // 4. 处理尺寸变化
+    return {new_yaw_world, new_yaw_earth};
+}
+
+// 处理尺寸变化
+std::tuple<double, double, double> Filter::handle_size_change(
+    const target_t& detection,
+    double confidence) {
     Eigen::VectorXd current_state = filter->get_state();
     double current_w = current_state(3);
     double current_l = current_state(4);
@@ -218,52 +318,19 @@ void Filter::update(const target_t& detection, float confidence) {
             if (confidence > prev_confidence) {
                 // 采用新的尺寸
             } else {
-                // 保持原有尺寸
                 final_w = current_w;
                 final_l = current_l;
                 final_h = current_h;
             }
         } else {
-            // 对于稳定的跟踪，使用平滑过渡
             final_w = (current_w + detection.w_world) / 2;
             final_l = (current_l + detection.l_world) / 2;
             final_h = (current_h + detection.h_world) / 2;
         }
     }
 
-    // 5. 构建观测向量
-    Eigen::VectorXd z(11);
-    z << detection.x_world, detection.y_world, detection.z_world,
-         final_w, final_l, final_h,
-         new_yaw_world,
-         detection.x_earth, detection.y_earth, detection.z_earth,
-         detection.heading_earth;
-
-    // 限制航向角变化
-    z(6) = previous_yaw_world + limit_angle(new_yaw_world - previous_yaw_world);
-    z(10) = filter->get_state()(14) + limit_angle(detection.heading_earth - filter->get_state()(14));
-
-    // 6. 更新滤波器
-    if (filter) {
-        filter->update(z);
-        
-        // 确保更新后的航向角在 [-pi, pi] 范围内
-        Eigen::VectorXd state = filter->get_state();
-        state(6) = limit_angle(state(6));   // 车辆坐标系航向角
-        state(14) = limit_angle(state(14)); // 大地坐标系航向角
-        filter->set_state(state);
-    }
-
-    // 7. 更新跟踪器状态
-    prev_confidence = confidence;
-    hits++;
-
-    track_history.push_back(Box3D(detection.x_world, detection.y_world, detection.z_world,
-                                 final_w, final_l, final_h,
-                                 new_yaw_world,
-                                 detection.classid, detection.conf));
+    return {final_w, final_l, final_h};
 }
-
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
 associate_detections_to_trackers(const std::vector<Box3D>& detections,

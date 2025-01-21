@@ -1,10 +1,9 @@
 /*
  * File:        track_manager.cpp
  * Author:      Yufeng Ma
- * Date:        2024-06-01
+ * Date:        2025-01-20
  * Email:       97357473@qq.com
- * Description: Implementation of the TrackManager class, including methods for
- *              updating, creating, and managing object trackers using Kalman filters.
+ * Description: Multi-object tracker management implementation.
  */
 
 #include <iostream>
@@ -29,14 +28,14 @@ void TrackManager::update(const std::vector<target_t>& detections) {
     // 预测所有跟踪器的状态
     for (auto& tracker : trackers) {
         // 打印预测前的状态
-        std::cout << "Before prediction, tracker " << tracker.track_id 
-                  << " state: " << tracker.get_state().transpose() << std::endl;
+        // std::cout << "Before prediction, tracker " << tracker.track_id 
+        //           << " state: " << tracker.get_state().transpose() << std::endl;
         
         tracker.predict();
         
         // 打印预测后的状态
-        std::cout << "After prediction, tracker " << tracker.track_id 
-                  << " state: " << tracker.get_state().transpose() << std::endl;
+        // std::cout << "After prediction, tracker " << tracker.track_id 
+        //           << " state: " << tracker.get_state().transpose() << std::endl;
     }
 
     // 将 target_t 转换为 Box3D 用于关联
@@ -69,7 +68,7 @@ void TrackManager::update(const std::vector<target_t>& detections) {
 
         // 关联检测和跟踪器
         auto [matches, unmatched_detections, unmatched_trackers] = 
-            associate_detections_to_trackers(detection_boxes, tracker_states, -0.1);
+            associate_detections_to_trackers(detection_boxes, tracker_states, -0.2);
 
         // 更新跟踪器
         update_trackers(detections, matches);
@@ -235,14 +234,14 @@ void TrackManager::update_trackers(const std::vector<target_t>& detections,
         const target_t& det = detections[detection_idx];
         
         // 打印更新前的状态
-        std::cout << "Before update, tracker " << trackers[tracker_idx].track_id 
-                  << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
+        // std::cout << "Before update, tracker " << trackers[tracker_idx].track_id 
+        //           << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
         
         trackers[tracker_idx].update(det, det.conf);
         
         // 打印更新后的状态
-        std::cout << "After update, tracker " << trackers[tracker_idx].track_id 
-                  << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
+        // std::cout << "After update, tracker " << trackers[tracker_idx].track_id 
+        //           << " state: " << trackers[tracker_idx].get_state().transpose() << std::endl;
         
         trackers[tracker_idx].hits++;
         trackers[tracker_idx].time_since_update = 0;

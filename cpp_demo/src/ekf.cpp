@@ -1,11 +1,9 @@
 /*
- * File:        kalman_filter.cpp
+ * File:        ekf.cpp
  * Author:      Yufeng Ma
- * Date:        2024-12-06
+ * Date:        2025-01-20
  * Email:       97357473@qq.com
- * Description: Implements the EKF class methods, including the
- *              constructor, predict, and update functions, using the
- *              Eigen library for matrix operations.
+ * Description: Extended Kalman filter for nonlinear systems.
  * 
  * 状态向量 x (19维):
  *   [0-6]:   车辆坐标系位姿 (x_world, y_world, z_world, w, l, h, heading_world)

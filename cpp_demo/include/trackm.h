@@ -1,11 +1,9 @@
 /*
  * File:        trackm.h
  * Author:      Yufeng Ma
- * Date:        2024-06-01
+ * Date:        2025-01-20
  * Email:       97357473@qq.com
- * Description: Header file for the Filter and KF classes, which implement
- *              tracking filters using Kalman Filters, and functions for
- *              associating detections with trackers.
+ * Description: Core tracking filter classes and detection-tracker association.
  */
 
 #ifndef TRACKM_H
@@ -72,6 +70,20 @@ protected:
 private:
     void init_filter(FilterType filter_type);
     void _init_kalman_filter();
+
+    // 处理航向角变化
+    std::pair<double, double> handle_heading_change(
+        const target_t& detection, 
+        double confidence);
+
+    // 处理尺寸变化
+    std::tuple<double, double, double> handle_size_change(
+        const target_t& detection,
+        double confidence);
+
+    // 在类的私有成员中添加航向角记录
+    double previous_yaw_world = 0.0;
+    double previous_yaw_earth = 0.0;
 };
 
 // KF 类现在只是 Filter 的一个别名

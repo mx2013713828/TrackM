@@ -9,3 +9,4 @@ cpp_demo/test_trackm
 cpp_demo/lib/libtrackm.so
 *.mp4
 test.txt
+*.pyc
