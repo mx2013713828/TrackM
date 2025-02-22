@@ -125,8 +125,11 @@ std::vector<target_t> TrackManager::get_reliable_tracks() const {
             target.speed = std::sqrt(vx_earth * vx_earth + vy_earth * vy_earth);  // 使用大地坐标系速度
             
             // 4. 更新预测轨迹
-            target.points_world_predict = tracker.track_world_prediction(20);
-            target.points_earth_predict = tracker.track_earth_prediction(20);
+            if (target.speed >= 10){
+                target.points_world_predict = tracker.track_world_prediction(20);
+                target.points_earth_predict = tracker.track_earth_prediction(20);
+            }
+            
             
             // 5. 更新跟踪相关属性
             target.track_id = tracker.track_id;

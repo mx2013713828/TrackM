@@ -31,15 +31,15 @@ Filter::Filter(const Eigen::VectorXd& bbox3D,
     // std::cout << "Creating new filter with ID: " << Track_ID << std::endl;
     // std::cout << "Initial position: " << bbox3D.transpose() << std::endl;
     
+    // 保存 class_id，用于后续初始化
+    // is_low_heading_weight = (info.find("class_id") != info.end() && info.at("class_id") == 0);
+    is_low_heading_weight = false;
+    
     init_filter(filter_type);
 }
 
-void Filter::init_filter(FilterType filter_type) {
-    // std::cout << "Initializing filter with type: " 
-    //           << (filter_type == FilterType::EKF ? "EKF" : 
-    //               filter_type == FilterType::KF ? "KF" : "IEKF") 
-    //           << std::endl;
-              
+void Filter::init_filter(FilterType filter_type) 
+{
     switch (filter_type) {
         case FilterType::KF:
             filter = std::make_unique<KalmanFilter>(19, 11);
@@ -54,7 +54,9 @@ void Filter::init_filter(FilterType filter_type) {
     _init_kalman_filter();
 }
     
-void Filter::_init_kalman_filter() {
+
+void Filter::_init_kalman_filter() 
+{
     double dt = 0.1;
     
     // 1. 设置状态转移矩阵 F
@@ -88,10 +90,26 @@ void Filter::_init_kalman_filter() {
 
     // 4. 设置测量噪声协方差矩阵 R
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(11, 11);
-    R.block<3,3>(0,0) *= 0.1;     // 位置测量噪声小
-    R.block<3,3>(3,3) *= 1.0;     // 尺寸测量噪声较大
-    R(6,6) = 0.1;                 // 航向角测量噪声小
-    R.block<4,4>(7,7) *= 0.1;     // 大地坐标系测量噪声小
+    
+    // 基础噪声设置
+    R.block<3,3>(0,0) *= 0.1;     // 位置测量噪声小 (x,y,z)_world
+    R.block<3,3>(3,3) *= 1.0;     // 尺寸测量噪声较大 (w,l,h)
+    R.block<3,3>(7,7) *= 0.1;     // 大地坐标系位置测量噪声小 (x,y,z)_earth
+
+    if (is_low_heading_weight) 
+    {
+        // class_id = 0 时，增大航向角相关的噪声
+        R(6,6) = 1000.0;           // 车辆坐标系航向角噪声很大
+        R(10,10) = 1000.0;         // 大地坐标系航向角噪声很大
+        
+        // 同时增大状态向量中航向角速度相关的过程噪声
+        Q(10,10) *= 1000.0;        // 车辆坐标系航向角速度噪声
+        Q(18,18) *= 1000.0;        // 大地坐标系航向角速度噪声
+    } else {
+        // 其他 class_id，保持正常权重
+        R(6,6) = 0.1;             // 车辆坐标系航向角噪声小
+        R(10,10) = 0.1;           // 大地坐标系航向角噪声小
+    }
 
     // 5. 设置初始状态向量
     Eigen::VectorXd x = Eigen::VectorXd::Zero(19);

@@ -18,13 +18,15 @@
 #include "base_filter.h"
 #include "ekf.h"
 
-enum class FilterType {
+enum class FilterType 
+{
     KF,
     EKF,
     IEKF
 };
 
-class Filter {
+class Filter 
+{
 public:
     Eigen::VectorXd initial_pos;
     int time_since_update;
@@ -40,10 +42,8 @@ public:
            int Track_ID,
            FilterType filter_type = FilterType::EKF);
 
-    virtual void predict() { 
-        if(filter) filter->predict(); 
-    }
-    
+    virtual void predict() { if(filter) filter->predict();}
+
     virtual void update(const target_t& detection, float confidence);
     
     // 获取状态
@@ -72,18 +72,15 @@ private:
     void _init_kalman_filter();
 
     // 处理航向角变化
-    std::pair<double, double> handle_heading_change(
-        const target_t& detection, 
-        double confidence);
+    std::pair<double, double> handle_heading_change(const target_t& detection, double confidence);
 
     // 处理尺寸变化
-    std::tuple<double, double, double> handle_size_change(
-        const target_t& detection,
-        double confidence);
+    std::tuple<double, double, double> handle_size_change(const target_t& detection, double confidence);
 
     // 在类的私有成员中添加航向角记录
     double previous_yaw_world = 0.0;
     double previous_yaw_earth = 0.0;
+    bool is_low_heading_weight;  // 标记是否降低航向角权重
 };
 
 // KF 类现在只是 Filter 的一个别名
