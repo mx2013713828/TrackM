@@ -1,13 +1,10 @@
 # <div align='center'> ⭐TrackM⭐ </div>
-  
-<div align = "center"> <img src="https://pic.imgdb.cn/item/65dc5dfc9f345e8d03446103.png" height=100 width=300> </div>
 
 #### <p align = "center">![Static Badge](https://img.shields.io/badge/mayufeng-blue?style=flat&label=Author)![Static Badge](https://img.shields.io/badge/2024/06/01-blue?style=flat&label=CreateTime)![Static Badge](https://img.shields.io/badge/97357473@qq\.com\-blue?style=flat&label=Email)</p>
 
 这是多目标跟踪器TrackM的代码实现, 算法思路参考了[deep_sort](https://github.com/nwojke/deep_sort)，[AB3DMOT](https://github.com/xinshuoweng/AB3DMOT)。增加了C++版本，可直接将检测结果作为输入。
 
 ---
-
 
 ## TODO
 
@@ -34,8 +31,6 @@
    - [x] 历史轨迹保存
    - [x] yaw方向速度获取
    - [x] 轨迹预测
-
-```
 
 ##  附录
 
