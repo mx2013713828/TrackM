@@ -68,7 +68,7 @@ void TrackManager::update(const std::vector<target_t>& detections) {
 
         // 关联检测和跟踪器
         auto [matches, unmatched_detections, unmatched_trackers] = 
-            associate_detections_to_trackers(detection_boxes, tracker_states, -0.2);
+            associate_detections_to_trackers(detection_boxes, tracker_states, -0.3);
 
         // 更新跟踪器
         update_trackers(detections, matches);
@@ -90,6 +90,7 @@ void TrackManager::update(const std::vector<target_t>& detections) {
 }
 
 std::vector<target_t> TrackManager::get_reliable_tracks() const {
+    
     std::vector<target_t> reliable_tracks;
     for (const auto& tracker : trackers) {
         if (tracker.hits >= min_hits && tracker.time_since_update < max_age) {
@@ -125,7 +126,7 @@ std::vector<target_t> TrackManager::get_reliable_tracks() const {
             target.speed = std::sqrt(vx_earth * vx_earth + vy_earth * vy_earth);  // 使用大地坐标系速度
             
             // 4. 更新预测轨迹
-            if (target.speed >= 10){
+            if (target.speed >= 0){ // 速度大于v0时，更新预测轨迹
                 target.points_world_predict = tracker.track_world_prediction(20);
                 target.points_earth_predict = tracker.track_earth_prediction(20);
             }

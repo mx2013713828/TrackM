@@ -31,7 +31,9 @@
    - [x] 历史轨迹保存
    - [x] yaw方向速度获取
    - [x] 轨迹预测
-
+   - [ ] 进行匹配时考虑检测框的类别(是否必要)
+   - [ ] hits / time_since_update 赋值逻辑
+  
 ##  附录
 
 ### kitti track format

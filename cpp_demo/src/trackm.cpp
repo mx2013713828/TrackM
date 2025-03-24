@@ -15,7 +15,8 @@
 #include <numeric>  // 为 std::iota
 
 // 将角度限制在 [-pi, pi] 范围内
-double limit_angle(double angle) {
+double limit_angle(double angle) 
+{
     while (angle > M_PI) angle -= 2.0 * M_PI;
     while (angle < -M_PI) angle += 2.0 * M_PI;
     return angle;
@@ -26,7 +27,8 @@ Filter::Filter(const Eigen::VectorXd& bbox3D,
               int Track_ID,
               FilterType filter_type)
     : initial_pos(bbox3D), time_since_update(0), track_id(Track_ID), 
-      hits(1), info(info), prev_confidence(0.0) {
+      hits(1), info(info), prev_confidence(0.0) 
+{
     // 添加调试信息
     // std::cout << "Creating new filter with ID: " << Track_ID << std::endl;
     // std::cout << "Initial position: " << bbox3D.transpose() << std::endl;
@@ -83,6 +85,8 @@ void Filter::_init_kalman_filter()
 
     // 3. 设置过程噪声协方差矩阵 Q
     Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(19, 19);
+    Q(10,10) = 0.01;  // 降低航向角速度的过程噪声
+    Q(18,18) = 0.01;  // 降低大地坐标系航向角速度的过程噪声
     Q.block<7,7>(0,0) *= 1.0;    // 位置和尺寸噪声较小
     Q.block<4,4>(7,7) *= 10.0;   // 速度过程噪声适中
     Q.block<4,4>(11,11) *= 1.0;  // 大地坐标系位置噪声较小
@@ -103,8 +107,8 @@ void Filter::_init_kalman_filter()
         R(10,10) = 1000.0;         // 大地坐标系航向角噪声很大
         
         // 同时增大状态向量中航向角速度相关的过程噪声
-        Q(10,10) *= 1000.0;        // 车辆坐标系航向角速度噪声
-        Q(18,18) *= 1000.0;        // 大地坐标系航向角速度噪声
+        Q(10,10) *= 0.1;        // 车辆坐标系航向角速度噪声
+        Q(18,18) *= 0.1;        // 大地坐标系航向角速度噪声
     } else {
         // 其他 class_id，保持正常权重
         R(6,6) = 0.1;             // 车辆坐标系航向角噪声小
@@ -135,12 +139,14 @@ void Filter::_init_kalman_filter()
         kf->set_measurement_noise(R);
         kf->set_state(x);
         kf->set_covariance(P);
+
     } else if (auto* ekf = dynamic_cast<ExtendedKalmanFilter*>(filter.get())) {
         ekf->set_transition_matrix(F);
         ekf->set_process_noise(Q);
         ekf->set_measurement_noise(R);
         ekf->set_state(x);
         ekf->set_covariance(P);
+
     } else if (auto* iekf = dynamic_cast<IteratedExtendedKalmanFilter*>(filter.get())) {
         iekf->set_transition_matrix(F);
         iekf->set_process_noise(Q);
@@ -155,7 +161,8 @@ void Filter::_init_kalman_filter()
 }
 
 // 最重要的函数
-void Filter::update(const target_t& detection, float confidence) {
+void Filter::update(const target_t& detection, float confidence) 
+{
     // 1. 更新不需要卡尔曼滤波的属性
     info["x_pixel"] = detection.x_pixel;
     info["y_pixel"] = detection.y_pixel;
@@ -247,6 +254,12 @@ void Filter::update(const target_t& detection, float confidence) {
                 // 正常更新，限制航向角范围
                 state(6) = limit_angle(state(6));   // 车辆坐标系航向角
                 state(14) = limit_angle(state(14)); // 大地坐标系航向角
+                
+                // 限制角速度不超过1 rad/s
+                // const double MAX_ANGULAR_VELOCITY = 1.17;  // 最大角速度限制 (rad/s)
+                // state(10) = std::clamp(state(10), -MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);  // 限制车辆坐标系角速度
+                // state(18) = std::clamp(state(18), -MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);  // 限制大地坐标系角速度
+                
                 filter->set_state(state);
             }
         }
@@ -254,7 +267,7 @@ void Filter::update(const target_t& detection, float confidence) {
 
     // 8. 更新跟踪器状态
     prev_confidence = confidence;
-    hits++;
+    // hits++;
 
     track_history.push_back(Box3D(detection.x_world, detection.y_world, detection.z_world,
                                  final_w, final_l, final_h,
@@ -263,9 +276,8 @@ void Filter::update(const target_t& detection, float confidence) {
 }
 
 // 处理航向角变化
-std::pair<double, double> Filter::handle_heading_change(
-    const target_t& detection, 
-    double confidence) {
+std::pair<double, double> Filter::handle_heading_change(const target_t& detection, double confidence) 
+{
     double previous_yaw_world = filter->get_state()(6);
     double new_yaw_world = detection.heading_world;
     double previous_yaw_earth = filter->get_state()(14);
@@ -275,18 +287,30 @@ std::pair<double, double> Filter::handle_heading_change(
     double yaw_diff_earth = limit_angle(new_yaw_earth - previous_yaw_earth);
     bool large_yaw_change_world = std::abs(yaw_diff_world) > M_PI / 12;
     bool large_yaw_change_earth = std::abs(yaw_diff_earth) > M_PI / 12;
+    const double alpha = 0.3;  // 平滑因子，值越小平滑效果越强
 
     if (large_yaw_change_world) {
         if (hits < 6) {
             if (confidence > prev_confidence) {
                 // 采用新的yaw
+
             } else if (confidence < prev_confidence) {
                 new_yaw_world = previous_yaw_world;
+
             } else {
                 new_yaw_world = (previous_yaw_world + new_yaw_world) / 2;
             }
         } else {
-            new_yaw_world = previous_yaw_world;
+            std::cout << "large_yaw_change_world" << std::endl;
+            // new_yaw_world = previous_yaw_world + alpha * yaw_diff_world;
+            double yaw_diff = 0.0;  // 将连续两帧的航向角差值限制在[-pi/2, pi/2]
+            if (yaw_diff_world >= M_PI/2) {
+                yaw_diff = -M_PI + yaw_diff_world;
+
+            } else if(yaw_diff_world < -M_PI/2) {
+                yaw_diff =  M_PI + yaw_diff_world;
+            }
+            new_yaw_world = previous_yaw_world + alpha * yaw_diff; // 平滑处理
         }
     }
         
@@ -294,13 +318,24 @@ std::pair<double, double> Filter::handle_heading_change(
         if (hits < 6) {
             if (confidence > prev_confidence) {
                 // 采用新的yaw
+
             } else if (confidence < prev_confidence) {
                 new_yaw_earth = previous_yaw_earth;
+
             } else {
                 new_yaw_earth = (previous_yaw_earth + new_yaw_earth) / 2;
             }
         } else {
-            new_yaw_earth = previous_yaw_earth;
+            std::cout << "large_yaw_change_earth" << std::endl;
+            // new_yaw_earth = previous_yaw_earth + alpha * yaw_diff_earth;
+            double yaw_diff = 0.0;  // 将连续两帧的航向角差值限制在[-pi/2, pi/2] 
+            if (yaw_diff_earth >= M_PI/2) {
+                yaw_diff = -M_PI + yaw_diff_earth;
+                
+            } else if(yaw_diff_earth < -M_PI/2) {
+                yaw_diff =  M_PI + yaw_diff_earth;
+            }
+            new_yaw_earth = previous_yaw_earth + alpha * yaw_diff;
         }
     }
 
@@ -308,9 +343,8 @@ std::pair<double, double> Filter::handle_heading_change(
 }
 
 // 处理尺寸变化
-std::tuple<double, double, double> Filter::handle_size_change(
-    const target_t& detection,
-    double confidence) {
+std::tuple<double, double, double> Filter::handle_size_change(const target_t& detection,double confidence) 
+{
     Eigen::VectorXd current_state = filter->get_state();
     double current_w = current_state(3);
     double current_l = current_state(4);
@@ -335,11 +369,13 @@ std::tuple<double, double, double> Filter::handle_size_change(
         if (hits < 6) {
             if (confidence > prev_confidence) {
                 // 采用新的尺寸
+                
             } else {
                 final_w = current_w;
                 final_l = current_l;
                 final_h = current_h;
             }
+            
         } else {
             final_w = (current_w + detection.w_world) / 2;
             final_l = (current_l + detection.l_world) / 2;
@@ -351,9 +387,8 @@ std::tuple<double, double, double> Filter::handle_size_change(
 }
 
 std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
-associate_detections_to_trackers(const std::vector<Box3D>& detections,
-                                 const std::vector<Box3D>& trackers,
-                                 float iou_threshold) {
+associate_detections_to_trackers(const std::vector<Box3D>& detections, const std::vector<Box3D>& trackers, float iou_threshold) 
+{
     if (trackers.empty()) {
         return std::make_tuple(std::vector<std::array<int, 2>>(), 
                                std::vector<int>(detections.size()), 
@@ -368,10 +403,10 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
             Box3D boxb_3d = trackers[t];
             
             // 如果类别不同，设置IoU为负值，确保不会匹配
-            if (boxa_3d.class_id != boxb_3d.class_id) {
-                iou_matrix(d, t) = -1;
-                continue;
-            }
+            // if (boxa_3d.class_id != boxb_3d.class_id) {
+            //     iou_matrix(d, t) = -1;
+            //     continue;
+            // }
             
             auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
             iou_matrix(d, t) = giou;
@@ -415,9 +450,9 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections,
 
     return std::make_tuple(matches, unmatched_detections, unmatched_trackers);
 }
-void print_results(const std::vector<std::array<int, 2>>& matches,
-                  const std::vector<int>& unmatched_detections,
-                  const std::vector<int>& unmatched_trackers) {
+
+void print_results(const std::vector<std::array<int, 2>>& matches, const std::vector<int>& unmatched_detections, const std::vector<int>& unmatched_trackers) 
+{
     std::cout << "Matches:" << std::endl;
     for (const auto& match : matches) {
         std::cout << "Detection " << match[0] << " -> Tracker " << match[1] << std::endl;
@@ -435,14 +470,16 @@ void print_results(const std::vector<std::array<int, 2>>& matches,
     std::cout << std::endl;
 }
 
-Eigen::VectorXd Filter::get_world_state() const {
+Eigen::VectorXd Filter::get_world_state() const 
+{
     if (filter) {
         return filter->get_state().head<7>();
     }
     return Eigen::VectorXd::Zero(7);
 }
 
-Eigen::VectorXd Filter::get_earth_state() const {
+Eigen::VectorXd Filter::get_earth_state() const 
+{
     if (filter) {
         Eigen::VectorXd state = filter->get_state();
         Eigen::VectorXd earth_state(4);
@@ -452,14 +489,16 @@ Eigen::VectorXd Filter::get_earth_state() const {
     return Eigen::VectorXd::Zero(4);
 }
 
-Eigen::VectorXd Filter::get_state() const {
+Eigen::VectorXd Filter::get_state() const 
+{
     if (filter) {
         return filter->get_state();
     }
     return Eigen::VectorXd::Zero(19);
 }
 
-Eigen::VectorXd Filter::get_velocity() const {
+Eigen::VectorXd Filter::get_velocity() const 
+{
     if (filter) {
         Eigen::VectorXd state = filter->get_state();
         return state.segment<3>(7);  // vx, vy, vz in world frame
@@ -467,7 +506,8 @@ Eigen::VectorXd Filter::get_velocity() const {
     return Eigen::VectorXd::Zero(3);
 }
 
-float Filter::get_yaw_speed() const {
+float Filter::get_yaw_speed() const 
+{
     if (filter) {
         Eigen::VectorXd state = filter->get_state();
         float vx = state(7);  // vx in world frame
@@ -479,11 +519,13 @@ float Filter::get_yaw_speed() const {
     return 0.0f;
 }
 
-const std::vector<Box3D>& Filter::get_history() const {
+const std::vector<Box3D>& Filter::get_history() const 
+{
     return track_history;
 }
 
-std::vector<point_t> Filter::track_world_prediction(int steps) const {
+std::vector<point_t> Filter::track_world_prediction(int steps) const 
+{
     std::vector<point_t> predictions;
     if (!filter) return predictions;
 
@@ -511,7 +553,8 @@ std::vector<point_t> Filter::track_world_prediction(int steps) const {
     return predictions;
 }
 
-std::vector<point_t> Filter::track_earth_prediction(int steps) const {
+std::vector<point_t> Filter::track_earth_prediction(int steps) const 
+{
     std::vector<point_t> predictions;
     if (!filter) return predictions;
 

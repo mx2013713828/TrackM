@@ -32,31 +32,36 @@ void IteratedExtendedKalmanFilter::predict() {
 }
 
 void IteratedExtendedKalmanFilter::update(const Eigen::VectorXd& z) {
-    Eigen::VectorXd x_iter = x;
-    Eigen::VectorXd x_prev;
-    Eigen::MatrixXd H;
+    Eigen::VectorXd x_iter = x;                // 初始化迭代状态为当前状态估计
+    Eigen::VectorXd x_prev;                    // 声明变量用于存储上一次迭代的状态
+    Eigen::MatrixXd H;                         // 声明观测模型的雅可比矩阵
     
-    for (int iter = 0; iter < max_iterations; ++iter) {
-        x_prev = x_iter;
-        H = calculate_jacobian_h(x_iter);
+    for (int iter = 0; iter < max_iterations; ++iter) {  // 开始迭代循环，最多迭代max_iterations次
+        x_prev = x_iter;                       // 保存当前迭代状态，用于后续收敛判断
+        H = calculate_jacobian_h(x_iter);      // 在当前迭代点计算观测模型的雅可比矩阵
         
         // 保存 K 作为成员变量
-        Eigen::MatrixXd S = H * P * H.transpose() + R;
-        K = P * H.transpose() * S.inverse();
+        Eigen::MatrixXd S = H * P * H.transpose() + R;  // 计算创新协方差矩阵
+        K = P * H.transpose() * S.inverse();   // 计算卡尔曼增益并保存为成员变量
         
-        x_iter = x + K * (z - H * x_iter - H * (x - x_iter));
+        x_iter = x + K * (z - H * x_iter - H * (x - x_iter));  // 更新状态估计，使用迭代EKF公式
         
-        if ((x_iter - x_prev).norm() < convergence_threshold) {
-            break;
+        if ((x_iter - x_prev).norm() < convergence_threshold) {  // 检查是否达到收敛条件
+            break;                             // 如果收敛，提前结束迭代
         }
     }
     
-    x = x_iter;
+    x = x_iter;                                // 将最终迭代结果赋值给状态估计
+    
+    // 限制角速度不超过1 rad/s
+    // const double MAX_ANGULAR_VELOCITY = 1.17;  // 最大角速度限制 (rad/s)
+    // x(10) = std::clamp(x(10), -MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);  // 限制车辆坐标系角速度
+    // x(18) = std::clamp(x(18), -MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);  // 限制大地坐标系角速度
     
     // 使用最终的 H 更新协方差
-    H = calculate_jacobian_h(x);  // 使用最终状态计算 H
-    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    P = (I - K * H) * P;
+    H = calculate_jacobian_h(x);               // 使用最终状态计算观测雅可比矩阵
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(state_dim, state_dim);  // 创建单位矩阵
+    P = (I - K * H) * P;                       // 更新状态协方差矩阵
 }
 
 BaseFilter* IteratedExtendedKalmanFilter::clone() const {

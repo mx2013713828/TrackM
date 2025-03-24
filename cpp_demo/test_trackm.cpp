@@ -48,7 +48,7 @@ std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
 }
 
 int main() {
-    std::string folderPath = "../data/detections/20241202_test56/"; // 替换为你的文件夹路径
+    std::string folderPath = "../data/detections/pcd_sim_data_test56/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
 
     // 打开目录
@@ -76,7 +76,7 @@ int main() {
     std::sort(filePaths.begin(), filePaths.end(), compareFileNames);
 
     // 创建 TrackManager 对象
-    TrackManager track_manager(20, 10);
+    TrackManager track_manager(10, 10);
 
     int n = 0;
     // 逐个读取每个文件的内容并按行输出
@@ -138,14 +138,14 @@ int main() {
                 }
 
                 // 再保存预测结果
-                for (auto& tracker : trackers) {
+                for (auto& track : tracks) {
                     // std::cout << "tracker: " << tracker.track_id << std::endl;
-                    std::vector<point_t> future_predictions = tracker.track_world_prediction(20);
+                    std::vector<point_t> future_predictions = track.points_world_predict;
                     for (const auto& point : future_predictions) {
                         savefile_future << point.x << " " << point.y << " " << 0.0 << " "
                                     << 0.0 << " " << 0.0 << " " << 0.0 << " "
                                     << 0.0 << " " << 0.0 << " "
-                                    << 0 << " " << tracker.track_id << std::endl;
+                                    << 0 << " " << track.track_id << std::endl;
                     }
                 }
                 savefile_future.close();
