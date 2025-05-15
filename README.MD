@@ -6,6 +6,23 @@
 
 ---
 
+## usage
+
+C++ demo 运行方法
+
+```
+# 编译
+cd cpp_demo
+g++ -I /usr/include/eigen3 -std=c++17 -o test_trackm test_trackm.cpp src/giou.cpp src/ekf.cpp src/track_manager.cpp src/trackm.cpp src/kalman_filter.cpp src/iekf.cpp `pkg-config --cflags --libs opencv4`
+
+# 运行
+./test_trackm
+# 运行后生成 cpp_result 和 cpp_result_future 两个文件夹,分别是保存的跟踪结果和预测结果。
+
+# 结果可视化
+python ../tools/visualize_track.py --pcd_folder ../data_sample/pcd --detection_folder ../data_sample/cpp_result/ --video_path output.mp4 --prediction_folder ../data_sample/cpp_result_future
+```
+
 ## TODO
 
 - [ ] python 实现
@@ -16,7 +33,6 @@
    - [x] 返回track结果包含类别名(Filter类中加class_id参数)
    - [x] 保存txt 分隔符从','改为空格;
    - [x] 跟踪结果可视化
-   - [ ] 进行匹配时考虑检测框的类别
 
 - [ ] C++ 实现
    - [x] C++ giou代码
@@ -31,7 +47,6 @@
    - [x] 历史轨迹保存
    - [x] yaw方向速度获取
    - [x] 轨迹预测
-   - [ ] 进行匹配时考虑检测框的类别(是否必要)
    - [ ] hits / time_since_update 赋值逻辑
   
 ##  附录

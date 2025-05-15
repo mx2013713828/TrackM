@@ -48,7 +48,7 @@ std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
 }
 
 int main() {
-    std::string folderPath = "../data/detections/pcd_sim_data_test56/"; // 替换为你的文件夹路径
+    std::string folderPath = "../data_sample/detections/pcd_sim_data_test56/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
 
     // 打开目录
@@ -112,8 +112,8 @@ int main() {
 
             std::vector<target_t> tracks = track_manager.get_reliable_tracks();
         
-            std::ofstream savefile("../data/cpp_result/" + filePath);
-            std::ofstream savefile_future("../data/cpp_result_future/" + filePath);
+            std::ofstream savefile("../data_sample/cpp_result/" + filePath);
+            std::ofstream savefile_future("../data_sample/cpp_result_future/" + filePath);
 
             // 保存txt结果
             // track type: Box3D 
