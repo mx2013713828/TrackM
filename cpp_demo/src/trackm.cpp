@@ -288,17 +288,19 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
     bool large_yaw_change_world = std::abs(yaw_diff_world) > M_PI / 12;
     bool large_yaw_change_earth = std::abs(yaw_diff_earth) > M_PI / 12;
     const double alpha = 0.3;  // 平滑因子，值越小平滑效果越强
+    const int stable_hits = 6; // 稳定跟踪次数
 
     if (large_yaw_change_world) {
-        if (hits < 6) {
-            if (confidence > prev_confidence) {
+        if (hits < stable_hits) {
+            if (confidence > prev_confidence+0.1) {
                 // 采用新的yaw
+                new_yaw_world = previous_yaw_world * 0.1 + new_yaw_world * 0.9;
 
             } else if (confidence < prev_confidence) {
-                new_yaw_world = previous_yaw_world;
+                new_yaw_world = previous_yaw_world * 0.9 + new_yaw_world * 0.1;
 
             } else {
-                new_yaw_world = (previous_yaw_world + new_yaw_world) / 2;
+                new_yaw_world = previous_yaw_world * 0.9 + new_yaw_world * 0.1;
             }
         } else {
             std::cout << "large_yaw_change_world" << std::endl;
@@ -309,21 +311,32 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
 
             } else if(yaw_diff_world < -M_PI/2) {
                 yaw_diff =  M_PI + yaw_diff_world;
+            } else {
+                yaw_diff = yaw_diff_world;
             }
+
+            if (yaw_diff > M_PI*0.1) {
+                yaw_diff = M_PI*0.1;
+            
+            } else if (yaw_diff < -M_PI*0.1) {
+                yaw_diff = -M_PI*0.1;
+            }
+
             new_yaw_world = previous_yaw_world + alpha * yaw_diff; // 平滑处理
         }
     }
         
     if (large_yaw_change_earth) {
-        if (hits < 6) {
-            if (confidence > prev_confidence) {
+        if (hits < stable_hits) {
+            if (confidence > prev_confidence+0.1) {
                 // 采用新的yaw
+                new_yaw_earth = previous_yaw_earth * 0.1 + new_yaw_earth * 0.9;
 
             } else if (confidence < prev_confidence) {
-                new_yaw_earth = previous_yaw_earth;
+                new_yaw_earth = previous_yaw_earth * 0.9 + new_yaw_earth * 0.1;
 
             } else {
-                new_yaw_earth = (previous_yaw_earth + new_yaw_earth) / 2;
+                new_yaw_earth = previous_yaw_earth * 0.9 + new_yaw_earth * 0.1;
             }
         } else {
             std::cout << "large_yaw_change_earth" << std::endl;
@@ -334,6 +347,15 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
                 
             } else if(yaw_diff_earth < -M_PI/2) {
                 yaw_diff =  M_PI + yaw_diff_earth;
+            } else {
+                yaw_diff = yaw_diff_earth;
+            }
+
+            if (yaw_diff > M_PI*0.1) {
+                yaw_diff = M_PI*0.1;
+            
+            } else if (yaw_diff < -M_PI*0.1) {
+                yaw_diff = -M_PI*0.1;
             }
             new_yaw_earth = previous_yaw_earth + alpha * yaw_diff;
         }
@@ -403,10 +425,10 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections, const std
             Box3D boxb_3d = trackers[t];
             
             // 如果类别不同，设置IoU为负值，确保不会匹配
-            // if (boxa_3d.class_id != boxb_3d.class_id) {
-            //     iou_matrix(d, t) = -1;
-            //     continue;
-            // }
+            if (boxa_3d.class_id != boxb_3d.class_id) {
+                iou_matrix(d, t) = -1;
+                continue;
+            }
             
             auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
             iou_matrix(d, t) = giou;
