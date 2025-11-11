@@ -48,7 +48,7 @@ std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
 }
 
 int main() {
-    std::string folderPath = "../data/detections/pcd_20250921/"; // 替换为你的文件夹路径
+    std::string folderPath = "../data/detections/sim_data_mini/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
 
     // 打开目录
@@ -144,7 +144,7 @@ int main() {
                     for (const auto& point : future_predictions) {
                         savefile_future << point.x << " " << point.y << " " << 0.0 << " "
                                     << 0.0 << " " << 0.0 << " " << 0.0 << " "
-                                    << 0.0 << " " << 0.0 << " "
+                                    << point.z << " " << 0.0 << " "
                                     << 0 << " " << track.track_id << std::endl;
                     }
                 }

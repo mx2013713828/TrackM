@@ -69,13 +69,13 @@ void Filter::_init_kalman_filter()
     F(1, 8) = dt;   // y_world 对 vy_world 的影响
     F(2, 9) = dt;   // z_world 对 vz_world 的影响
     F(6, 10) = dt;  // heading_world 对 v_heading_world 的影响
-    
+    F(10,10) = 0.5;
     // 大地坐标系部分
     F(11, 15) = dt;  // x_earth 对 vx_earth 的影响
     F(12, 16) = dt;  // y_earth 对 vy_earth 的影响
     F(13, 17) = dt;  // z_earth 对 vz_earth 的影响
     F(14, 18) = dt;  // heading_earth 对 v_heading_earth 的影响
-    
+    F(18, 18) = 0.5;
     // 2. 设置观测矩阵 H
     Eigen::MatrixXd H = Eigen::MatrixXd::Zero(11, 19);
     // 车辆坐标系观测
@@ -121,8 +121,8 @@ void Filter::_init_kalman_filter()
     x.segment<4>(11) = initial_pos.tail<4>();  // 大地坐标系状态
     
     // 初始化速度为小值而不是0
-    x.segment<4>(7).setConstant(0.1);   // 车辆坐标系速度
-    x.segment<4>(15).setConstant(0.1);  // 大地坐标系速度
+    x.segment<4>(7).setConstant(0.0);   // 车辆坐标系速度
+    x.segment<4>(15).setConstant(0.0);  // 大地坐标系速度
 
     // 6. 设置初始状态协方差矩阵
     Eigen::MatrixXd P = Eigen::MatrixXd::Identity(19, 19);
@@ -275,7 +275,10 @@ void Filter::update(const target_t& detection, float confidence)
                                  detection.classid, detection.conf));
 }
 
-// 处理航向角变化
+/* ----------------------------------------------------------------- */
+// 函数名: handle_heading_change()                   
+// 说　明: 处理航向角变化              
+/* ----------------------------------------------------------------- */
 std::pair<double, double> Filter::handle_heading_change(const target_t& detection, double confidence) 
 {
     double previous_yaw_world = filter->get_state()(6);
@@ -285,10 +288,10 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
     
     double yaw_diff_world = limit_angle(new_yaw_world - previous_yaw_world);
     double yaw_diff_earth = limit_angle(new_yaw_earth - previous_yaw_earth);
-    bool large_yaw_change_world = std::abs(yaw_diff_world) > M_PI / 12;
-    bool large_yaw_change_earth = std::abs(yaw_diff_earth) > M_PI / 12;
-    const double alpha = 0.3;  // 平滑因子，值越小平滑效果越强
-    const int stable_hits = 6; // 稳定跟踪次数
+    bool large_yaw_change_world = std::abs(yaw_diff_world) > M_PI / 15;
+    bool large_yaw_change_earth = std::abs(yaw_diff_earth) > M_PI / 15;
+    const double alpha = 0.6;  // 平滑因子，值越小平滑效果越强
+    const int stable_hits = 20; // 稳定跟踪次数
 
     if (large_yaw_change_world) {
         if (hits < stable_hits) {
@@ -296,34 +299,27 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
                 // 采用新的yaw
                 new_yaw_world = previous_yaw_world * 0.1 + new_yaw_world * 0.9;
 
-            } else if (confidence < prev_confidence) {
-                new_yaw_world = previous_yaw_world * 0.9 + new_yaw_world * 0.1;
-
             } else {
                 new_yaw_world = previous_yaw_world * 0.9 + new_yaw_world * 0.1;
             }
         } else {
-            std::cout << "large_yaw_change_world" << std::endl;
+            std::cout << "large_yaw_change_world" << ",yaw_diff_world: " <<yaw_diff_world<<std::endl;
+
             // new_yaw_world = previous_yaw_world + alpha * yaw_diff_world;
-            double yaw_diff = 0.0;  // 将连续两帧的航向角差值限制在[-pi/2, pi/2]
-            if (yaw_diff_world >= M_PI/2) {
-                yaw_diff = -M_PI + yaw_diff_world;
 
-            } else if(yaw_diff_world < -M_PI/2) {
-                yaw_diff =  M_PI + yaw_diff_world;
-            } else {
-                yaw_diff = yaw_diff_world;
-            }
-
-            if (yaw_diff > M_PI*0.1) {
-                yaw_diff = M_PI*0.1;
+            if (yaw_diff_world > M_PI*0.1) {
+                yaw_diff_world = M_PI*0.1;
             
-            } else if (yaw_diff < -M_PI*0.1) {
-                yaw_diff = -M_PI*0.1;
+            } else if (yaw_diff_world < -M_PI*0.1) {
+                yaw_diff_world = -M_PI*0.1;
             }
-
-            new_yaw_world = previous_yaw_world + alpha * yaw_diff; // 平滑处理
+            std::cout<<"trackid: "<<track_id<<", yaw_diff: "<<yaw_diff_world<<std::endl;
+            new_yaw_world = previous_yaw_world + alpha * yaw_diff_world; // 平滑处理
         }
+    } else {
+        // not large_yaw_change_world
+        new_yaw_world = previous_yaw_world +  yaw_diff_world;
+        std::cout<<"trackid: "<<track_id<<", effective_diff: "<<yaw_diff_world<<" alpha_adapt: "<<alpha<<std::endl;
     }
         
     if (large_yaw_change_earth) {
@@ -332,33 +328,24 @@ std::pair<double, double> Filter::handle_heading_change(const target_t& detectio
                 // 采用新的yaw
                 new_yaw_earth = previous_yaw_earth * 0.1 + new_yaw_earth * 0.9;
 
-            } else if (confidence < prev_confidence) {
-                new_yaw_earth = previous_yaw_earth * 0.9 + new_yaw_earth * 0.1;
-
             } else {
                 new_yaw_earth = previous_yaw_earth * 0.9 + new_yaw_earth * 0.1;
             }
         } else {
             std::cout << "large_yaw_change_earth" << std::endl;
             // new_yaw_earth = previous_yaw_earth + alpha * yaw_diff_earth;
-            double yaw_diff = 0.0;  // 将连续两帧的航向角差值限制在[-pi/2, pi/2] 
-            if (yaw_diff_earth >= M_PI/2) {
-                yaw_diff = -M_PI + yaw_diff_earth;
-                
-            } else if(yaw_diff_earth < -M_PI/2) {
-                yaw_diff =  M_PI + yaw_diff_earth;
-            } else {
-                yaw_diff = yaw_diff_earth;
-            }
-
-            if (yaw_diff > M_PI*0.1) {
-                yaw_diff = M_PI*0.1;
+            if (yaw_diff_earth > M_PI*0.1) {
+                yaw_diff_earth = M_PI*0.1;
             
-            } else if (yaw_diff < -M_PI*0.1) {
-                yaw_diff = -M_PI*0.1;
+            } else if (yaw_diff_earth < -M_PI*0.1) {
+                yaw_diff_earth = -M_PI*0.1;
             }
-            new_yaw_earth = previous_yaw_earth + alpha * yaw_diff;
+            new_yaw_earth = previous_yaw_earth + alpha * yaw_diff_earth;
         }
+    } else {
+        // not large_yaw_change_earth
+        new_yaw_earth = previous_yaw_earth + yaw_diff_earth;
+        // std::cout<<"trackid: "<<track_id<<", effective_diff: "<<yaw_diff_earth<<" alpha_adapt: "<<alpha<<std::endl;
     }
 
     return {new_yaw_world, new_yaw_earth};
@@ -559,6 +546,9 @@ std::vector<point_t> Filter::track_world_prediction(int steps) const
     point_t current_point;
     current_point.x = current_state(0);
     current_point.y = current_state(1);
+    current_point.z = current_state(6);  // 添加航向角
+
+    
     predictions.push_back(current_point);
 
     // 预测未来位置
@@ -569,6 +559,7 @@ std::vector<point_t> Filter::track_world_prediction(int steps) const
         point_t point;
         point.x = current_state(0);
         point.y = current_state(1);
+        point.z = current_state(6);
         predictions.push_back(point);
     }
 
@@ -588,6 +579,8 @@ std::vector<point_t> Filter::track_earth_prediction(int steps) const
     point_t current_point;
     current_point.x = current_state(11);  // x in earth frame
     current_point.y = current_state(12);  // y in earth frame
+    current_point.z = current_state(14);  // heading in earth frame
+    
     predictions.push_back(current_point);
 
     // 预测未来位置
@@ -598,6 +591,8 @@ std::vector<point_t> Filter::track_earth_prediction(int steps) const
         point_t point;
         point.x = current_state(11);
         point.y = current_state(12);
+        point.z = current_state(14);
+
         predictions.push_back(point);
     }
 
