@@ -214,3 +214,59 @@ std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d) {
 
     return {GIOU, IOU3D, IOU2D};
 }
+
+// 基于yaw角度差异的增强GIOU计算
+std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight) {
+    // 1. 先计算标准GIOU
+    auto corners_a = box2corners(boxa_3d);
+    auto corners_b = box2corners(boxb_3d);
+
+    std::vector<std::array<float, 2>> boxa_bot = {
+        {corners_a[7][0], corners_a[7][1]},
+        {corners_a[6][0], corners_a[6][1]},
+        {corners_a[5][0], corners_a[5][1]},
+        {corners_a[4][0], corners_a[4][1]}};
+
+    std::vector<std::array<float, 2>> boxb_bot = {
+        {corners_b[7][0], corners_b[7][1]},
+        {corners_b[6][0], corners_b[6][1]},
+        {corners_b[5][0], corners_b[5][1]},
+        {corners_b[4][0], corners_b[4][1]}};
+
+    auto intersection_2d = sutherland_hodgman_clip(boxa_bot, boxb_bot);
+    float I_2D = intersection_2d.empty() ? 0.0f : polygon_area(intersection_2d);
+    float C_2D = convex_area(boxa_bot, boxb_bot);
+
+    float h_overlap = compute_height(corners_a, corners_b, true);
+    float h_union = compute_height(corners_a, corners_b, false);
+
+    float I_3D = I_2D * h_overlap;
+    float C_3D = C_2D * h_union;
+
+    float U_2D = boxa_3d.l * boxa_3d.w + boxb_3d.l * boxb_3d.w - I_2D;
+    float U_3D = boxa_3d.l * boxa_3d.w * boxa_3d.h + boxb_3d.l * boxb_3d.w * boxb_3d.h - I_3D;
+    
+    float IOU2D = I_2D / U_2D;
+    float IOU3D = I_3D / U_3D;
+    float GIOU = IOU3D - (C_3D - U_3D) / C_3D;
+
+    // 2. 计算yaw角度差异惩罚项
+    // 将角度差异归一化到 [-π, π] 范围
+    float yaw_diff = boxa_3d.yaw - boxb_3d.yaw;
+    while (yaw_diff > M_PI) yaw_diff -= 2.0 * M_PI;
+    while (yaw_diff < -M_PI) yaw_diff += 2.0 * M_PI;
+    
+    // 计算yaw相似度：角度差为0时相似度为1，差180度时相似度为0
+    // 使用余弦函数：cos(0)=1, cos(π)=-1，映射到[0,1]
+    float yaw_similarity = (1.0f + std::cos(yaw_diff)) / 2.0f;
+    
+    // yaw惩罚项：当角度差大时，惩罚值大（相似度小）
+    float yaw_penalty = 1.0f - yaw_similarity;  // [0, 1]，0表示完全对齐，1表示反向
+    
+    // 3. 计算增强的GIOU：原GIOU减去加权的yaw惩罚
+    // yaw_weight控制yaw影响的强度，建议范围[0.3, 1.0]
+    float GIOU_with_yaw = GIOU - yaw_weight * yaw_penalty;
+    
+    // 返回: {增强GIOU, IOU3D, IOU2D, yaw惩罚值}
+    return {GIOU_with_yaw, IOU3D, IOU2D, yaw_penalty};
+}

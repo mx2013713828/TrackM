@@ -68,7 +68,7 @@ void TrackManager::update(const std::vector<target_t>& detections) {
 
         // 关联检测和跟踪器
         auto [matches, unmatched_detections, unmatched_trackers] = 
-            associate_detections_to_trackers(detection_boxes, tracker_states, -0.3);
+            associate_detections_to_trackers(detection_boxes, tracker_states, 0.2);
 
         // 更新跟踪器
         update_trackers(detections, matches);

@@ -185,16 +185,19 @@ def calculate_iou(boxa_3d, boxb_3d):
     # print(f"Box A Bottom Corners: \n{boxa_bot}")
     # print(f"Box B Bottom Corners: \n{boxb_bot}")
 
-    # print(f"I_2D: {I_2D}")
-    # print(f"I_3D: {I_3D}")
-    # print(f"C_3D: {C_3D}")
-    # print(f"U_2D: {U_2D}")
-    # print(f"U_3D: {U_3D}")
+
 
     IOU2d = I_2D / U_2D
     IOU3d = I_3D / U_3D
     GIOU = I_3D / U_3D - (C_3D - U_3D) / C_3D
-
+    print(f"I_2D: {I_2D}")
+    print(f"I_3D: {I_3D}")
+    print(f"C_3D: {C_3D}")
+    print(f"U_2D: {U_2D}")
+    print(f"U_3D: {U_3D}")
+    print(f"GIOU: {GIOU}")
+    print(f"IOU3d: {IOU3d}")
+    print(f"IOU2d: {IOU2d}")
     return GIOU,IOU3d,IOU2d
 
 if __name__ == '__main__':

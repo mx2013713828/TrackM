@@ -48,7 +48,7 @@ std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
 }
 
 int main() {
-    std::string folderPath = "../data/detections/sim_data_mini/"; // 替换为你的文件夹路径
+    std::string folderPath = "../data/detections/pcd_sim_data_test56/"; // 替换为你的文件夹路径
     std::vector<std::string> filePaths;
 
     // 打开目录

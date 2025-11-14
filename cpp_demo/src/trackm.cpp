@@ -417,7 +417,8 @@ associate_detections_to_trackers(const std::vector<Box3D>& detections, const std
                 continue;
             }
             
-            auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
+            // auto [giou, iou3d, iou2d] = calculate_iou(boxa_3d, boxb_3d);
+            auto [giou, iou3d, iou2d, yaw_penalty] = calculate_iou_with_yaw(boxa_3d, boxb_3d);
             iou_matrix(d, t) = giou;
         }
     }

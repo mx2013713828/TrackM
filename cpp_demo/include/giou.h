@@ -150,4 +150,8 @@ float polygon_area(const std::vector<std::array<float, 2>>& vertices);
 std::vector<std::array<float, 2>> sutherland_hodgman_clip(const std::vector<std::array<float, 2>>& subject_polygon, const std::vector<std::array<float, 2>>& clip_polygon);
 std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d);
 
+// 基于yaw角度差异的增强GIOU计算
+// 返回: {GIOU_with_yaw, IOU3D, IOU2D, yaw_penalty}
+std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight = 0.5);
+
 #endif // GIOU_H
