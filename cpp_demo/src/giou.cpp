@@ -1,12 +1,12 @@
 /*
  * File:        giou.cpp
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-06
  * Email:       97357473@qq.com
  * Description: Implementation of 3D IoU and GIoU calculations.
  */
 
-#include "../include/giou.h"
+
 #include <algorithm>
 #include <numeric>
 #include <limits>
@@ -18,8 +18,6 @@ std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
     float yaw = bbox.yaw;
     float c = std::cos(yaw);
     float s = std::sin(yaw);
-
-    // std::cout<< "cos:"<<c <<"sin:"<<s<<std::endl;
 
     std::array<std::array<float, 3>, 3> R = {{
         {c, -s, 0},
@@ -50,35 +48,7 @@ std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
 }
 
 float convex_area(const std::vector<std::array<float, 2>>& boxa_bottom, const std::vector<std::array<float, 2>>& boxb_bottom) {
-    // float xc1 = std::min(
-    //         std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
-    //         std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
-    //     );
-    // float yc1 = std::min(
-    //     std::min_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
-    //     std::min_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
-    // );
-    // float xc2 = std::max(
-    //     std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0),
-    //     std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[0] < b[0]; })->at(0)
-    // );
-    // float yc2 = std::max(
-    //     std::max_element(boxa_bottom.begin(), boxa_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1),
-    //     std::max_element(boxb_bottom.begin(), boxb_bottom.end(), [](auto& a, auto& b) { return a[1] < b[1]; })->at(1)
-    // );
-    
-    // return (xc2 - xc1) * (yc2 - yc1);
 
-    // test log
-    // std::cout<<"boxa:"<<std::endl;
-    // for(auto& a : boxa_bottom) {
-    //     std::cout<< a[0] <<","<< a[1] <<std::endl;
-    // }
-
-    // std::cout<<"boxb:"<<std::endl;
-    // for(auto& b : boxb_bottom) {
-    //     std::cout<< b[0] <<","<< b[1] <<std::endl;
-    // }
     // 第二种使用凸包算法的实现
     std::vector<std::array<float, 2>> all_corners = boxa_bottom;
     all_corners.insert(all_corners.end(), boxb_bottom.begin(), boxb_bottom.end());
@@ -100,14 +70,15 @@ float convex_area(const std::vector<std::array<float, 2>>& boxa_bottom, const st
 
     // 返回凸包面积
     return hull_area;
-
 }
 
-float compute_height(const std::vector<std::array<float, 3>>& corners1, const std::vector<std::array<float, 3>>& corners2, bool inter) {
+float compute_height(const std::vector<std::array<float, 3>>& corners1, const std::vector<std::array<float, 3>>& corners2, bool inter) 
+{
     if (inter) {
         float zmax = std::min(corners1[0][2], corners2[0][2]);
         float zmin = std::max(corners1[4][2], corners2[4][2]);
         return std::max(0.0f, zmax - zmin);
+
     } else {
         float zmax = std::max(corners1[0][2], corners2[0][2]);
         float zmin = std::min(corners1[4][2], corners2[4][2]);
@@ -115,7 +86,9 @@ float compute_height(const std::vector<std::array<float, 3>>& corners1, const st
     }
 }
 
-float polygon_area(const std::vector<std::array<float, 2>>& vertices) {
+
+float polygon_area(const std::vector<std::array<float, 2>>& vertices) 
+{
     int n = vertices.size();
     float area = 0.0f;
     for (int i = 0; i < n; ++i) {
@@ -126,7 +99,9 @@ float polygon_area(const std::vector<std::array<float, 2>>& vertices) {
     return std::abs(area) / 2.0f;
 }
 
-std::vector<std::array<float, 2>> sutherland_hodgman_clip(const std::vector<std::array<float, 2>>& subject_polygon, const std::vector<std::array<float, 2>>& clip_polygon) {
+
+std::vector<std::array<float, 2>> sutherland_hodgman_clip(const std::vector<std::array<float, 2>>& subject_polygon, const std::vector<std::array<float, 2>>& clip_polygon) 
+{
     auto inside = [](const std::array<float, 2>& p, const std::array<float, 2>& edge_start, const std::array<float, 2>& edge_end) {
         return (edge_end[0] - edge_start[0]) * (p[1] - edge_start[1]) >= (edge_end[1] - edge_start[1]) * (p[0] - edge_start[0]);
     };
@@ -162,7 +137,9 @@ std::vector<std::array<float, 2>> sutherland_hodgman_clip(const std::vector<std:
     return output_list;
 }
 
-std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d) {
+
+std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d) 
+{
     auto corners_a = box2corners(boxa_3d);
     auto corners_b = box2corners(boxb_3d);
 
@@ -190,23 +167,6 @@ std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d) {
 
     float U_2D = boxa_3d.l * boxa_3d.w + boxb_3d.l * boxb_3d.w - I_2D;
     float U_3D = boxa_3d.l * boxa_3d.w * boxa_3d.h + boxb_3d.l * boxb_3d.w * boxb_3d.h - I_3D;
-    
-    // std::cout << "Box A Bottom Corners:" << std::endl;
-    // for (const auto& point : boxa_bot) {
-    //     std::cout << "(" << point[0] << ", " << point[1] << ")" << std::endl;
-    // }
-
-    // std::cout << "Box B Bottom Corners:" << std::endl;
-    // for (const auto& point : boxb_bot) {
-    //     std::cout << "(" << point[0] << ", " << point[1] << ")" << std::endl;
-    // }
-
-
-    // std::cout << "I_2D: " << I_2D << std::endl;
-    // std::cout << "I_3D: " << I_3D << std::endl;
-    // std::cout << "C_3D: " << C_3D << std::endl;
-    // std::cout << "U_2D: " << U_2D << std::endl;
-    // std::cout << "U_3D: " << U_3D << std::endl;
     
     float IOU2D = I_2D / U_2D;
     float IOU3D = I_3D / U_3D;
@@ -216,10 +176,22 @@ std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d) {
 }
 
 // 基于yaw角度差异的增强GIOU计算
-std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight) {
+std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight) 
+{
+    auto is_rotation_invariant = [](int class_id) {
+        return class_id == static_cast<int>(LIDAR_DET_TYPE::PEOPLE) || 
+               class_id == static_cast<int>(LIDAR_DET_TYPE::CONE);
+    };
+
+    Box3D boxa_adj = boxa_3d;
+    Box3D boxb_adj = boxb_3d;
+
+    if (is_rotation_invariant(boxa_3d.class_id)) boxa_adj.yaw = 0.0f;
+    if (is_rotation_invariant(boxb_3d.class_id)) boxb_adj.yaw = 0.0f;
+
     // 1. 先计算标准GIOU
-    auto corners_a = box2corners(boxa_3d);
-    auto corners_b = box2corners(boxb_3d);
+    auto corners_a = box2corners(boxa_adj);
+    auto corners_b = box2corners(boxb_adj);
 
     std::vector<std::array<float, 2>> boxa_bot = {
         {corners_a[7][0], corners_a[7][1]},
@@ -243,8 +215,8 @@ std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& b
     float I_3D = I_2D * h_overlap;
     float C_3D = C_2D * h_union;
 
-    float U_2D = boxa_3d.l * boxa_3d.w + boxb_3d.l * boxb_3d.w - I_2D;
-    float U_3D = boxa_3d.l * boxa_3d.w * boxa_3d.h + boxb_3d.l * boxb_3d.w * boxb_3d.h - I_3D;
+    float U_2D = boxa_adj.l * boxa_adj.w + boxb_adj.l * boxb_adj.w - I_2D;
+    float U_3D = boxa_adj.l * boxa_adj.w * boxa_adj.h + boxb_adj.l * boxb_adj.w * boxb_adj.h - I_3D;
     
     float IOU2D = I_2D / U_2D;
     float IOU3D = I_3D / U_3D;
@@ -262,11 +234,9 @@ std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& b
 
     // yaw惩罚项：当角度差大时，惩罚值大（相似度小）
     float yaw_penalty = 1.0f - yaw_similarity;  // [0, 1]，0表示完全对齐，1表示反向
-    if (boxa_3d.class_id == 0 || boxb_3d.class_id==0 ){
-        yaw_weight = 0.0
-    }
-    if (boxa_3d.class_id == 1 || boxb_3d.class_id==1 ){
-        yaw_weight = 0.0
+    // 针对行人或锥桶，忽略yaw惩罚
+    if (is_rotation_invariant(boxa_3d.class_id) || is_rotation_invariant(boxb_3d.class_id)) {
+        yaw_weight = 0.0f;
     }
     // 3. 计算增强的GIOU：原GIOU减去加权的yaw惩罚
     // yaw_weight控制yaw影响的强度，建议范围[0.3, 1.0]

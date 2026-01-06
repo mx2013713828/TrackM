@@ -5,6 +5,22 @@
 这是多目标跟踪器TrackM的代码实现, 算法思路参考了[deep_sort](https://github.com/nwojke/deep_sort)，[AB3DMOT](https://github.com/xinshuoweng/AB3DMOT)。增加了C++版本，可直接将检测结果作为输入。
 
 ---
+## usage
+
+C++ demo 运行方法
+
+```
+# 编译
+cd cpp_demo
+g++ -I /usr/include/eigen3 -std=c++17 -o test_trackm test_trackm.cpp src/giou.cpp src/ekf.cpp src/track_manager.cpp src/trackm.cpp src/kalman_filter.cpp src/iekf.cpp `pkg-config --cflags --libs opencv4`
+
+# 运行
+./test_trackm
+# 运行后生成 cpp_result 和 cpp_result_future 两个文件夹,分别是保存的跟踪结果和预测结果。
+
+# 结果可视化
+python ../tools/visualize_track.py --pcd_folder ../data_sample/pcd --detection_folder ../data_sample/cpp_result/ --video_path output.mp4 --prediction_folder ../data_sample/cpp_result_future
+```
 
 ## TODO
 

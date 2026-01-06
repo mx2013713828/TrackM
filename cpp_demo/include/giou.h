@@ -16,6 +16,22 @@
 #include <iostream>
 #include <Eigen/Dense>
 
+enum class LIDAR_DET_TYPE { // define see params.h    
+    CONE     = 0,   // size:[0.5, 0.8]  	// 锥桶 
+    PEOPLE   = 1,   // size:[0.71, 0.8]  	// 行人 
+    CAR_S    = 2,   // size:[4.1, 1.8]   	// 社会车 
+    CAR_P    = 3,   // size:[5.3, 2.1]  	// 皮卡  
+    TRUCK    = 4,   // size:[9.6, 4.3]  	// 矿卡
+    TRUCK_S  = 5,   // size:[7.3, 2.5]      // 小型卡车 
+    TRUCK_M  = 6,   // size:[12.2, 3.3]  	// 中型卡车
+    TRUCK_L  = 7,   // size:[17.9, 4.1]  	// 半挂车
+    TRUCK_F  = 8,   // size:[8.0, 3.0]   	// 油罐车，洒水车
+    EXCAVATOR= 9,   // size:[11.6, 4.0]	    // 挖掘机    
+    LOADER   = 10,   // size:[9.4, 3.4]   	// 装载机
+    ROLLER   = 11,  // size:[8.0, 3.0]  	// 压路机
+    GRADER   = 12,  // 平地机
+};
+
 typedef struct 
 {
     float x;
