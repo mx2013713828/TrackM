@@ -259,10 +259,12 @@ std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& b
     // 计算yaw相似度：角度差为0时相似度为1，差180度时相似度为0
     // 使用余弦函数：cos(0)=1, cos(π)=-1，映射到[0,1]
     float yaw_similarity = (1.0f + std::cos(yaw_diff)) / 2.0f;
-    
+
     // yaw惩罚项：当角度差大时，惩罚值大（相似度小）
     float yaw_penalty = 1.0f - yaw_similarity;  // [0, 1]，0表示完全对齐，1表示反向
-    
+    if (boxa_3d.class_id == 0){
+        yaw_weight = 0.0
+    }
     // 3. 计算增强的GIOU：原GIOU减去加权的yaw惩罚
     // yaw_weight控制yaw影响的强度，建议范围[0.3, 1.0]
     float GIOU_with_yaw = GIOU - yaw_weight * yaw_penalty;
