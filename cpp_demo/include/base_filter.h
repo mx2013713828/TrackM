@@ -1,18 +1,21 @@
 /*
  * File:        base_filter.h
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Abstract base class for Kalman filter variants.
  */
 
-#ifndef BASE_FILTER_H
-#define BASE_FILTER_H
+#pragma once
 
+#include <memory>
 #include <Eigen/Dense>
+#include "motion_model.h"
 
 
-class BaseFilter {
+class BaseFilter 
+{
+    
 public:
     virtual ~BaseFilter() = default;
     
@@ -28,8 +31,15 @@ public:
     virtual void set_state(const Eigen::VectorXd& x) = 0;
     virtual void set_covariance(const Eigen::MatrixXd& P) = 0;
     
-    // 添加克隆接口
-    virtual BaseFilter* clone() const = 0;
-};
+    // 统一初始化接口
+    virtual void init(const Eigen::MatrixXd& F, const Eigen::MatrixXd& H, 
+                     const Eigen::MatrixXd& Q, const Eigen::MatrixXd& R, 
+                     const Eigen::VectorXd& x, const Eigen::MatrixXd& P,
+                     std::shared_ptr<MotionModel> model = nullptr) = 0;
 
-#endif // BASE_FILTER_H 
+    // 使用 std::unique_ptr 进行克隆，确保内存安全
+    virtual std::unique_ptr<BaseFilter> clone() const = 0;
+
+protected:
+    std::shared_ptr<MotionModel> motion_model_;
+};

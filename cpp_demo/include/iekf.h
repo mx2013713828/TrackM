@@ -1,19 +1,24 @@
 /*
  * File:        iekf.h
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Iterated Extended Kalman filter declarations.
  */
+
 #pragma once
+
+#include <memory>
 #include "base_filter.h"
 
-class IteratedExtendedKalmanFilter : public BaseFilter {
+class IteratedExtendedKalmanFilter : public BaseFilter 
+{
+
 public:
     IteratedExtendedKalmanFilter(int state_dim, int measurement_dim);
     void predict() override;
     void update(const Eigen::VectorXd& z) override;
-    BaseFilter* clone() const override;
+    std::unique_ptr<BaseFilter> clone() const override;
     
     // 添加这些必要的虚函数实现
     Eigen::VectorXd get_state() const override { return x; }
@@ -25,6 +30,18 @@ public:
     void set_process_noise(const Eigen::MatrixXd& new_Q) { Q = new_Q; }
     void set_measurement_noise(const Eigen::MatrixXd& new_R) { R = new_R; }
     void set_transition_matrix(const Eigen::MatrixXd& new_F) { F = new_F; }
+
+    void init(const Eigen::MatrixXd& F_in, const Eigen::MatrixXd& H_in, 
+              const Eigen::MatrixXd& Q_in, const Eigen::MatrixXd& R_in, 
+              const Eigen::VectorXd& x_in, const Eigen::MatrixXd& P_in,
+              std::shared_ptr<MotionModel> model = nullptr) override {
+        F = F_in;
+        Q = Q_in;
+        R = R_in;
+        x = x_in;
+        P = P_in;
+        motion_model_ = model;
+    }
 
 private:
     // 添加成员变量

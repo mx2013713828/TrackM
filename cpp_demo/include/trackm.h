@@ -1,20 +1,19 @@
 /*
  * File:        trackm.h
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Core tracking filter classes and detection-tracker association.
  */
 
-#ifndef TRACKM_H
-#define TRACKM_H
+#pragma once
 
 #include <memory>
 #include <vector>
 #include <array>
 #include <unordered_map>
 #include <Eigen/Dense>
-#include "giou.h"
+#include "common_types.h"
 #include "base_filter.h"
 #include "ekf.h"
 
@@ -25,8 +24,9 @@ enum class FilterType
     IEKF
 };
 
-class Filter 
+class Track 
 {
+    
 public:
     Eigen::VectorXd initial_pos;
     int time_since_update;
@@ -37,10 +37,10 @@ public:
     std::vector<point_t> points_earth;  // 原始大地坐标系点集
     target_t last_detection;  // 存储最后一次更新的检测数据
 
-    Filter(const Eigen::VectorXd& bbox3D, 
-           const std::unordered_map<std::string, float>& info, 
-           int Track_ID,
-           FilterType filter_type = FilterType::EKF);
+    Track(const Eigen::VectorXd& bbox3D, 
+          const std::unordered_map<std::string, float>& info, 
+          int Track_ID,
+          FilterType filter_type = FilterType::EKF);
 
     virtual void predict() { if(filter) filter->predict();}
 
@@ -82,18 +82,3 @@ private:
     double previous_yaw_earth = 0.0;
     bool is_low_heading_weight;  // 标记是否降低航向角权重
 };
-
-// KF 类现在只是 Filter 的一个别名
-using KF = Filter;
-
-// 关联函数声明
-std::tuple<std::vector<std::array<int, 2>>, std::vector<int>, std::vector<int>>
-associate_detections_to_trackers(const std::vector<Box3D>& detections,
-                               const std::vector<Box3D>& trackers,
-                               float iou_threshold = 0.1);
-
-void print_results(const std::vector<std::array<int, 2>>& matches,
-                  const std::vector<int>& unmatched_detections,
-                  const std::vector<int>& unmatched_trackers);
-
-#endif // TRACKM_H

@@ -1,18 +1,19 @@
 /*
  * File:        kalman_filter.h
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Standard Kalman filter declarations.
  */
 
-#ifndef KALMAN_FILTER_H
-#define KALMAN_FILTER_H
+#pragma once
 
 #include <Eigen/Dense>
 #include "base_filter.h"
 
-class KalmanFilter : public BaseFilter {
+class KalmanFilter : public BaseFilter 
+{
+
 public:
     KalmanFilter(int state_dim, int measurement_dim);
     
@@ -31,8 +32,20 @@ public:
     void set_process_noise(const Eigen::MatrixXd& Q);
     void set_measurement_noise(const Eigen::MatrixXd& R);
 
-    BaseFilter* clone() const override {
-        return new KalmanFilter(*this);
+    void init(const Eigen::MatrixXd& F_in, const Eigen::MatrixXd& H_in, 
+              const Eigen::MatrixXd& Q_in, const Eigen::MatrixXd& R_in, 
+              const Eigen::VectorXd& x_in, const Eigen::MatrixXd& P_in,
+              std::shared_ptr<MotionModel> model = nullptr) override {
+        F = F_in;
+        H = H_in;
+        Q = Q_in;
+        R = R_in;
+        x = x_in;
+        P = P_in;
+    }
+
+    std::unique_ptr<BaseFilter> clone() const override {
+        return std::make_unique<KalmanFilter>(*this);
     }
 
 private:
@@ -45,5 +58,3 @@ private:
     Eigen::MatrixXd R;  // 测量噪声矩阵
     Eigen::MatrixXd Q;  // 过程噪声矩阵
 };
-
-#endif // KALMAN_FILTER_H

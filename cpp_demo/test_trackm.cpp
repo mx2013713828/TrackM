@@ -27,7 +27,7 @@ bool compareFileNames(const std::string& a, const std::string& b) {
 std::vector<target_t> convert_to_target(const std::vector<Box3D>& detections) {
     std::vector<target_t> target_detections;
     for (const auto& detection : detections) {
-        target_t target;
+        target_t target{};
         // 填充车辆坐标系信息
         target.x_world = detection.x;
         target.y_world = detection.y;
@@ -105,12 +105,19 @@ int main() {
                 //     std::cout << "box3d: " << box3d.x << " " << box3d.y << " " << box3d.z << " " << box3d.w << " " << box3d.l << " " << box3d.h << " " << box3d.yaw << " " << box3d.score << std::endl;
                 // }
             }
+            // std::cout << "Read " << new_detections.size() << " detections from " << filePath << std::endl;
+            
             std::vector<target_t> target_detections = convert_to_target(new_detections);
+            // std::cout << "Updating tracker..." << std::endl;
             track_manager.update(target_detections);
+            // std::cout << "Tracker updated." << std::endl;
+            
             std::cout << std::endl; 
             file.close(); // 关闭文件
 
+            // std::cout << "Getting reliable tracks..." << std::endl;
             std::vector<target_t> tracks = track_manager.get_reliable_tracks();
+            // std::cout << "Got " << tracks.size() << " reliable tracks." << std::endl;
         
             std::ofstream savefile("../data/cpp_result/" + filePath);
             std::ofstream savefile_future("../data/cpp_result_future/" + filePath);
@@ -127,7 +134,7 @@ int main() {
 
             // 保存预测轨迹
             if (savefile_future.is_open()) {
-                std::vector<Filter>& trackers = track_manager.get_all_trackers();
+                std::vector<Track>& trackers = track_manager.get_all_trackers();
                 // 先保存当前位置结果
                 
                 for (const auto& track : tracks) {
@@ -156,7 +163,7 @@ int main() {
         }
 
         n++;
-        // if(n >10){break;}
+        if(n >300){break;}
     }
 
 

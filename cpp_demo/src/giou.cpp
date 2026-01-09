@@ -1,20 +1,19 @@
 /*
  * File:        giou.cpp
  * Author:      Yufeng Ma
- * Date:        2026-01-06
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Implementation of 3D IoU and GIoU calculations.
  */
-
 
 #include <algorithm>
 #include <numeric>
 #include <limits>
 #include <opencv2/opencv.hpp>
-
 #include "../include/giou.h"
 
-std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
+std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) 
+{
     float yaw = bbox.yaw;
     float c = std::cos(yaw);
     float s = std::sin(yaw);
@@ -47,7 +46,8 @@ std::vector<std::array<float, 3>> box2corners(const Box3D& bbox) {
     return corners_3d;
 }
 
-float convex_area(const std::vector<std::array<float, 2>>& boxa_bottom, const std::vector<std::array<float, 2>>& boxb_bottom) {
+float convex_area(const std::vector<std::array<float, 2>>& boxa_bottom, const std::vector<std::array<float, 2>>& boxb_bottom) 
+{
 
     // 第二种使用凸包算法的实现
     std::vector<std::array<float, 2>> all_corners = boxa_bottom;
@@ -176,7 +176,7 @@ std::array<float, 3> calculate_iou(const Box3D& boxa_3d, const Box3D& boxb_3d)
 }
 
 // 基于yaw角度差异的增强GIOU计算
-std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight) 
+std::array<float, 3> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& boxb_3d, float yaw_weight) 
 {
     auto is_rotation_invariant = [](int class_id) {
         return class_id == static_cast<int>(LIDAR_DET_TYPE::PEOPLE) || 
@@ -225,8 +225,9 @@ std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& b
     // 2. 计算yaw角度差异惩罚项
     // 将角度差异归一化到 [-π, π] 范围
     float yaw_diff = boxa_3d.yaw - boxb_3d.yaw;
-    while (yaw_diff > M_PI) yaw_diff -= 2.0 * M_PI;
-    while (yaw_diff < -M_PI) yaw_diff += 2.0 * M_PI;
+    if (std::isfinite(yaw_diff)) {
+        yaw_diff = std::atan2(std::sin(yaw_diff), std::cos(yaw_diff));
+    }
     
     // 计算yaw相似度：角度差为0时相似度为1，差180度时相似度为0
     // 使用余弦函数：cos(0)=1, cos(π)=-1，映射到[0,1]
@@ -242,6 +243,6 @@ std::array<float, 4> calculate_iou_with_yaw(const Box3D& boxa_3d, const Box3D& b
     // yaw_weight控制yaw影响的强度，建议范围[0.3, 1.0]
     float GIOU_with_yaw = GIOU - yaw_weight * yaw_penalty;
     
-    // 返回: {增强GIOU, IOU3D, IOU2D, yaw惩罚值}
-    return {GIOU_with_yaw, IOU3D, IOU2D, yaw_penalty};
+    // 返回: {增强GIOU, IOU3D, IOU2D}
+    return {GIOU_with_yaw, IOU3D, IOU2D};
 }

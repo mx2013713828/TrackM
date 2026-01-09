@@ -1,19 +1,21 @@
 /*
  * File:        ekf.h
  * Author:      Yufeng Ma
- * Date:        2025-01-20
+ * Date:        2026-01-09
  * Email:       97357473@qq.com
  * Description: Extended Kalman filter declarations.
  */
 
-#ifndef EKALMAN_FILTER_H
-#define EKALMAN_FILTER_H
+#pragma once
 
 #include <Eigen/Dense>
+#include <memory>
 #include <functional>
 #include "base_filter.h"  // 包含基类定义
 
-class ExtendedKalmanFilter : public BaseFilter {
+class ExtendedKalmanFilter : public BaseFilter 
+{
+
 public:
     ExtendedKalmanFilter(int state_dim, int measurement_dim);
     
@@ -45,8 +47,22 @@ public:
         R = new_R;
     }
     
-    BaseFilter* clone() const override {
-        return new ExtendedKalmanFilter(*this);
+    void init(const Eigen::MatrixXd& F_in, const Eigen::MatrixXd& H_in, 
+              const Eigen::MatrixXd& Q_in, const Eigen::MatrixXd& R_in, 
+              const Eigen::VectorXd& x_in, const Eigen::MatrixXd& P_in,
+              std::shared_ptr<MotionModel> model = nullptr) override {
+        // 对于 EKF，F 是雅可比矩阵的初始值，H 在此处可能暂时用不到（如果是纯非线性）
+        // 但为了统一接口，我们也可以先保存
+        F = F_in; 
+        Q = Q_in;
+        R = R_in;
+        x = x_in;
+        P = P_in;
+        motion_model_ = model;
+    }
+
+    std::unique_ptr<BaseFilter> clone() const override {
+        return std::make_unique<ExtendedKalmanFilter>(*this);
     }
 
 private:
@@ -63,4 +79,3 @@ private:
     Eigen::MatrixXd calculate_jacobian_f(const Eigen::VectorXd& x);
     Eigen::MatrixXd calculate_jacobian_h(const Eigen::VectorXd& x);
 };
-#endif // EKALMAN_FILTER_H
